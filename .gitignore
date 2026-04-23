@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+.DS_Store
+ngrok.exe
+.claude/
+backend/error_log*.txt
+report.txt
+plans.txt
+read_docx.py
+*.docx

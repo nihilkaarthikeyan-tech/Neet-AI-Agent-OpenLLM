@@ -1,0 +1,192 @@
+import { useState, useEffect } from 'react';
+import { Flame, Loader2, RefreshCw, Calendar, Target, Zap } from 'lucide-react';
+import { api } from '../lib/api';
+
+interface DailyMessage {
+  message: string;
+  date: string;
+  fresh: boolean;
+}
+
+interface StreakData {
+  streak: number;
+  weeklyTests: number;
+  totalTests: number;
+}
+
+export default function MotivationPage() {
+  const [daily, setDaily] = useState<DailyMessage | null>(null);
+  const [streak, setStreak] = useState<StreakData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchAll = async (refresh = false) => {
+    if (refresh) setIsRefreshing(true);
+    setError('');
+    try {
+      const [msg, str] = await Promise.all([
+        api.get<DailyMessage>('/api/motivation/daily'),
+        api.get<StreakData>('/api/motivation/streak'),
+      ]);
+      setDaily(msg);
+      setStreak(str);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  if (isLoading) {
+    return (
+      <div className="page-loading-center">
+        <Loader2 size={32} className="spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <Flame size={28} className="page-icon" style={{ color: '#f59e0b' }} />
+        <div>
+          <h1 className="page-title">Motivation Coach</h1>
+          <p className="page-desc">Your daily AI pep-talk — personalized for your NEET journey</p>
+        </div>
+      </div>
+
+      {error && <div className="auth-error" style={{ marginBottom: '20px' }}>{error}</div>}
+
+      {/* Streak + stats row */}
+      <div className="stats-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '32px' }}>
+        <div className="stat-card" style={{ borderColor: streak && streak.streak > 0 ? 'rgba(245,158,11,0.4)' : undefined }}>
+          <p className="stat-value" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <Flame size={22} style={{ color: '#f59e0b' }} />
+            {streak?.streak ?? 0}
+          </p>
+          <p className="stat-label">Day Streak</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-value">{streak?.weeklyTests ?? 0}</p>
+          <p className="stat-label">Tests This Week</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-value">{streak?.totalTests ?? 0}</p>
+          <p className="stat-label">Total Tests</p>
+        </div>
+      </div>
+
+      {/* Daily message card */}
+      <h2 className="section-heading">Today's Message</h2>
+      <div className="solution-card panel-card--dark" style={{ marginBottom: '28px', position: 'relative', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.07)' }}>
+        {/* Glow */}
+        <div style={{
+          position: 'absolute', top: '-60px', right: '-60px',
+          width: '200px', height: '200px',
+          background: 'radial-gradient(circle, rgba(245,158,11,0.15), transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={14} style={{ color: '#f59e0b' }} />
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>{today}</span>
+          </div>
+          <button
+            onClick={() => fetchAll(true)}
+            disabled={isRefreshing}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 12px', borderRadius: '6px',
+              background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+              border: '1px solid rgba(245,158,11,0.2)', fontFamily: 'inherit',
+              transition: 'background 0.15s',
+            }}
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
+            Refresh
+          </button>
+        </div>
+
+        {daily ? (
+          <p style={{
+            fontSize: '18px', lineHeight: 1.7, color: '#f1f5f9',
+            fontWeight: 500, position: 'relative',
+          }}>
+            <span style={{ fontSize: '40px', color: '#f59e0b', lineHeight: 1, marginRight: '4px', verticalAlign: 'sub' }}>"</span>
+            {daily.message}
+            <span style={{ fontSize: '40px', color: '#f59e0b', lineHeight: 1, marginLeft: '4px', verticalAlign: 'sub' }}>"</span>
+          </p>
+        ) : (
+          <p style={{ color: '#94a3b8', fontSize: '15px' }}>Could not load today's message. Try refreshing.</p>
+        )}
+      </div>
+
+      {/* Weekly breakdown */}
+      <h2 className="section-heading">Weekly Summary</h2>
+      <div className="panel-grid-3" style={{ marginBottom: '28px' }}>
+        <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Target size={18} style={{ color: '#8b5cf6' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>Tests This Week</span>
+          </div>
+          <p style={{ fontSize: '32px', fontWeight: 800, color: '#8b5cf6' }}>{streak?.weeklyTests ?? 0}</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8' }}>Keep taking at least 1 test per day</p>
+        </div>
+
+        <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Flame size={18} style={{ color: '#f59e0b' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>Active Streak</span>
+          </div>
+          <p style={{ fontSize: '32px', fontWeight: 800, color: '#f59e0b' }}>{streak?.streak ?? 0} days</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8' }}>
+            {streak?.streak === 0 ? 'Take a test today to start your streak!' : 'Amazing consistency — keep it up!'}
+          </p>
+        </div>
+
+        <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Zap size={18} style={{ color: '#10b981' }} />
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>Total Practice</span>
+          </div>
+          <p style={{ fontSize: '32px', fontWeight: 800, color: '#10b981' }}>{streak?.totalTests ?? 0}</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8' }}>Total tests completed so far</p>
+        </div>
+      </div>
+
+      {/* Motivation tips */}
+      <h2 className="section-heading">NEET Topper Tips</h2>
+      <div className="auth-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
+        <ul style={{ display: 'flex', flexDirection: 'column', gap: '14px', listStyle: 'none' }}>
+          {[
+            'Solve at least 50 MCQs every day — consistency beats intensity.',
+            'Review wrong answers immediately after every mock test. That\'s where the real learning is.',
+            'Prioritize NCERT textbooks for Biology — 80% of NEET Biology is directly from NCERT.',
+            'For Physics, focus on understanding concepts deeply rather than memorizing formulas.',
+            'Time management: aim to finish all 180 questions in under 160 minutes, leaving 20 for review.',
+            'Sleep 7-8 hours. Consolidation happens during sleep — it\'s not wasted time.',
+          ].map((tip, i) => (
+            <li key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <span style={{
+                width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(245,158,11,0.15)',
+                color: '#f59e0b', fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{i + 1}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-primary)', lineHeight: 1.6 }}>{tip}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
