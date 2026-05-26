@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Question = {
@@ -17,10 +17,12 @@ type Question = {
   optionC: string;
   optionD: string;
   subject: string;
+  topic?: string;
   userAnswer: string | null;
   // only present after submission
   correctOption?: string;
   explanation?: string;
+  errorType?: string | null;
 };
 
 type Attempt = {
@@ -70,6 +72,10 @@ export default function TestsPage() {
   // Config
   const [subject, setSubject] = useState('Physics');
   const [count, setCount] = useState(10);
+  const [adaptive, setAdaptive] = useState(false);
+
+  // Error classification
+  const [classified, setClassified] = useState<Record<string, string>>({});
 
   // State machine
   const [view, setView] = useState<View>('home');
@@ -138,7 +144,7 @@ export default function TestsPage() {
       const res = await fetch(`${API_BASE}/api/tests/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subject, count }),
+        body: JSON.stringify({ subject, count, adaptive }),
       });
       const data = await res.json() as { attempt?: Attempt; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate test');
@@ -423,6 +429,34 @@ export default function TestsPage() {
                       <p style={{ fontSize: '13px', color: '#a5b4fc', lineHeight: 1.6 }}><strong>Explanation:</strong> {q.explanation}</p>
                     </div>
                   )}
+                  {isWrong && (
+                    <div style={{ marginTop: '10px' }}>
+                      <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px', fontWeight: 600 }}>Classify your mistake:</p>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {[
+                          { key: 'conceptual', label: '🧠 Conceptual', color: '#ef4444' },
+                          { key: 'silly', label: '🤦 Silly', color: '#f59e0b' },
+                          { key: 'misread', label: '👁️ Misread', color: '#6366f1' },
+                          { key: 'time_pressure', label: '⏱️ Time Pressure', color: '#06b6d4' },
+                        ].map(({ key, label, color }) => {
+                          const active = (classified[q.id] ?? q.errorType) === key;
+                          return (
+                            <button key={key} onClick={async () => {
+                              setClassified(c => ({ ...c, [q.id]: key }));
+                              await fetch(`${API_BASE}/api/tests/${attempt!.id}/classify`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ questionId: q.id, errorType: key }),
+                              }).catch(() => {});
+                            }}
+                              style={{ padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${active ? color : '#334155'}`, background: active ? `${color}22` : 'transparent', color: active ? color : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -498,12 +532,19 @@ export default function TestsPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <button
             onClick={handleGenerate}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '10px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}
           >
             <Play size={18} /> Generate Test
+          </button>
+          <button
+            onClick={() => setAdaptive(a => !a)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '10px', border: `2px solid ${adaptive ? '#f59e0b' : '#334155'}`, background: adaptive ? 'rgba(245,158,11,0.1)' : 'transparent', color: adaptive ? '#f59e0b' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
+            title="Focuses questions on your weak areas from analytics"
+          >
+            🎯 {adaptive ? 'Adaptive ON' : 'Adaptive Mode'}
           </button>
           <p style={{ fontSize: '13px', color: '#64748b' }}>
             Scoring: +4 correct, −1 wrong, 0 skipped

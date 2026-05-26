@@ -13,6 +13,8 @@ import {
   BookOpen,
   BookMarked,
   Flame,
+  GraduationCap,
+  Trophy,
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
@@ -40,6 +42,8 @@ const navGroups: NavGroup[] = [
       { to: '/dashboard/tests',     label: 'Mock Tests',    icon: <ClipboardList size={17} /> },
       { to: '/dashboard/flashcards',label: 'Flashcards',    icon: <Layers size={17} /> },
       { to: '/dashboard/pyq',       label: 'PYQ Bank',      icon: <BookMarked size={17} /> },
+      { to: '/dashboard/ncert',     label: 'NCERT Coverage',icon: <GraduationCap size={17} /> },
+      { to: '/dashboard/strategy',  label: 'Exam Strategy', icon: <Trophy size={17} /> },
     ],
   },
   {

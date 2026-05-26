@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Layers, Loader2, Plus, Zap, ChevronRight, BookOpen } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Flashcard = {

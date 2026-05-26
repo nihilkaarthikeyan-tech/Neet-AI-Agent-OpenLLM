@@ -1,0 +1,175 @@
+import { useState, useRef, useEffect } from 'react';
+import { Trophy, Send, Bot, User as UserIcon, Lightbulb } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+
+type Message = { id: string; role: 'user' | 'assistant'; content: string };
+
+const GREETING = `Hello! I'm your NEET Exam Strategy Coach.
+
+I'll help you with:
+• **Exam day strategy** — which section to tackle first, time splits
+• **Negative marking tactics** — when to attempt vs skip
+• **High-yield topic targeting** — what to focus on in the final weeks
+• **Anxiety management** — staying calm and focused on exam day
+
+What would you like to work on today?`;
+
+const QUICK_PROMPTS = [
+  'How should I split my time across Physics, Chemistry, Biology?',
+  'When should I skip a question to avoid negative marking?',
+  'What are the highest-weightage topics I must not miss?',
+  'How do I handle exam anxiety on the day of NEET?',
+  'Give me a last-week revision strategy',
+  'How do I use elimination to maximise marks?',
+];
+
+export default function ExamStrategyPage() {
+  const { token } = useAuthStore();
+  const [messages, setMessages] = useState<Message[]>([
+    { id: '1', role: 'assistant', content: GREETING },
+  ]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [streamingId, setStreamingId] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
+  const sendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isTyping) return;
+    setInput('');
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: trimmed };
+    setMessages(prev => [...prev, userMsg]);
+    setIsTyping(true);
+
+    const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
+      const response = await fetch(`${API_BASE}/api/strategy/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: trimmed, history }),
+      });
+
+      if (!response.ok) throw new Error('Failed to reach strategy coach.');
+
+      const botId = Date.now().toString() + 'bot';
+      setMessages(prev => [...prev, { id: botId, role: 'assistant', content: '' }]);
+      setStreamingId(botId);
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let done = false, buffer = '';
+
+      while (!done && reader) {
+        const { value, done: rd } = await reader.read();
+        done = rd;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const d = line.slice(6);
+              if (d === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(d);
+                if (parsed.text) setMessages(prev => prev.map(m => m.id === botId ? { ...m, content: m.content + parsed.text } : m));
+              } catch { /* ignore */ }
+            }
+          }
+        }
+      }
+    } catch {
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: 'Sorry, I could not connect to the strategy coach.' }]);
+    } finally {
+      setIsTyping(false);
+      setStreamingId(null);
+    }
+  };
+
+  const renderContent = (text: string) => {
+    // Simple markdown: bold
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <strong key={i}>{part.slice(2, -2)}</strong>
+        : part
+    );
+  };
+
+  return (
+    <div className="page-container tutor-panel" style={{ minHeight: '100vh', paddingBottom: '20px' }}>
+      <div className="page-header" style={{ marginBottom: '20px', flexShrink: 0 }}>
+        <Trophy size={28} className="page-icon" />
+        <div>
+          <h1 className="page-title">Exam Strategy Coach</h1>
+          <p className="page-desc">Get personalised NEET strategy — time management, negative marking, and more</p>
+        </div>
+      </div>
+
+      {/* Quick prompts */}
+      {messages.length <= 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
+          {QUICK_PROMPTS.map(p => (
+            <button key={p} onClick={() => sendMessage(p)}
+              style={{ padding: '7px 14px', borderRadius: '20px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lightbulb size={12} style={{ color: 'var(--accent)' }} />
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="chat-container chat-subject-biology">
+        <div className="chat-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Trophy size={16} style={{ color: '#f59e0b' }} />
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Strategy Coach</span>
+            <span style={{ fontSize: '12px', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '20px' }}>Online</span>
+          </div>
+        </div>
+
+        <div className="chat-messages">
+          {messages.map(msg => (
+            <div key={msg.id} className={`chat-bubble-wrapper ${msg.role === 'user' ? 'chat-right' : 'chat-left'}`}>
+              <div className="chat-avatar">
+                {msg.role === 'user' ? <UserIcon size={16} /> : <Trophy size={16} />}
+              </div>
+              <div className="chat-bubble">
+                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '14px' }}>
+                  {msg.id === streamingId
+                    ? <>{renderContent(msg.content)}<span className="chat-cursor">▋</span></>
+                    : <>{renderContent(msg.content)}{msg.id === streamingId && <span className="chat-cursor">▋</span>}</>
+                  }
+                </p>
+              </div>
+            </div>
+          ))}
+          {isTyping && !streamingId && (
+            <div className="chat-bubble-wrapper chat-left">
+              <div className="chat-avatar"><Bot size={16} /></div>
+              <div className="typing-indicator">
+                <div className="typing-dot" /><div className="typing-dot" /><div className="typing-dot" />
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+
+        <div className="chat-input-area">
+          <input type="text" className="chat-input" placeholder="Ask about exam strategy…"
+            value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && sendMessage(input)} />
+          <button className="chat-send" onClick={() => sendMessage(input)} disabled={isTyping || !input.trim()}>
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -60,7 +60,7 @@ export default function TutorPage() {
 
     try {
       // Because we need to consume an SSE stream, we use native fetch rather than our api wrapper.
-      const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+      const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
       const response = await fetch(`${API_BASE}/api/tutor/chat`, {
         method: 'POST',
         headers: {
@@ -146,8 +146,8 @@ export default function TutorPage() {
         </div>
       </div>
 
-      <div className="chat-container">
-        
+      <div className={`chat-container chat-subject-${subject.toLowerCase()}`}>
+
         {/* Tutor Topbar & Subject Selector */}
         <div className="chat-header">
            <div style={{ display: 'flex', gap: '8px' }}>
@@ -155,7 +155,7 @@ export default function TutorPage() {
                 <button
                   key={sub}
                   onClick={() => setSubject(sub)}
-                  className={`subject-badge ${subject === sub ? 'subject-badge-active' : ''}`}
+                  className={`subject-badge ${subject === sub ? `subject-badge-active subject-badge-${sub.toLowerCase()}` : ''}`}
                 >
                   {sub}
                 </button>

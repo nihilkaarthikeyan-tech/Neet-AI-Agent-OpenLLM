@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
 async function request<T>(
   path: string,
@@ -11,7 +11,7 @@ async function request<T>(
     ...(options.headers ?? {}),
   };
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include' });
   const data = await res.json() as T;
 
   if (!res.ok) {

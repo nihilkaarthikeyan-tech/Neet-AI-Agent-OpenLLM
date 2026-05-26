@@ -6,19 +6,29 @@ import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
 const router = Router();
 
 // POST /api/tests/generate
-// Body: { subject: string, count: number }
+// Body: { subject: string, count: number, adaptive?: boolean }
 router.post('/generate', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const { subject, count } = req.body as { subject: string; count: number };
+    const { subject, count, adaptive } = req.body as { subject: string; count: number; adaptive?: boolean };
 
     if (!subject || !count || count < 5 || count > 45) {
       res.status(400).json({ error: 'subject is required and count must be 5–45.' });
       return;
     }
 
+    // Fetch weak areas for adaptive mode
+    let weakTopicsHint = '';
+    if (adaptive) {
+      const cache = await prisma.weakAreaCache.findUnique({ where: { userId } });
+      if (cache && Array.isArray(cache.topics) && cache.topics.length > 0) {
+        const topics = (cache.topics as string[]).slice(0, 5).join(', ');
+        weakTopicsHint = `\nPRIORITY: Focus 60–70% of questions on these identified weak topics: ${topics}. Remaining questions may cover other areas of ${subject}.`;
+      }
+    }
+
     const prompt = `You are an expert NEET (National Eligibility cum Entrance Test, India) question setter.
-Generate exactly ${count} high-quality multiple-choice questions for the subject: ${subject}.
+Generate exactly ${count} high-quality multiple-choice questions for the subject: ${subject}.${weakTopicsHint}
 Each question must be NEET-level difficulty and have exactly 4 options (A, B, C, D) with one correct answer.
 
 Return ONLY a valid JSON array. Do not include markdown or any text before or after. Use this exact structure:
@@ -31,7 +41,8 @@ Return ONLY a valid JSON array. Do not include markdown or any text before or af
     "optionD": "Fourth option",
     "correct": "A",
     "explanation": "A detailed explanation of why the correct answer is right and why the others are wrong.",
-    "subject": "${subject}"
+    "subject": "${subject}",
+    "topic": "Topic name (e.g. Thermodynamics, Cell Division)"
   }
 ]`;
 
@@ -57,6 +68,7 @@ Return ONLY a valid JSON array. Do not include markdown or any text before or af
       correct: string;
       explanation: string;
       subject: string;
+      topic?: string;
     }>;
 
     try {
@@ -91,6 +103,7 @@ Return ONLY a valid JSON array. Do not include markdown or any text before or af
             correctOption: q.correct,
             explanation: q.explanation,
             subject: q.subject ?? subject,
+            topic: q.topic ?? '',
           })),
         },
       },
@@ -258,6 +271,31 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res: Response)
   } catch (err) {
     console.error('Submit error:', err);
     res.status(500).json({ error: 'Failed to submit test.' });
+  }
+});
+
+// PATCH /api/tests/:id/classify — classify error type for a question after submission
+// Body: { questionId: string, errorType: string }
+router.patch('/:id/classify', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const id = req.params['id'] as string;
+    const { questionId, errorType } = req.body as { questionId: string; errorType: string };
+
+    const validTypes = ['conceptual', 'silly', 'misread', 'time_pressure'];
+    if (!questionId || !validTypes.includes(errorType)) {
+      res.status(400).json({ error: 'questionId and errorType (conceptual/silly/misread/time_pressure) required.' });
+      return;
+    }
+
+    const attempt = await prisma.testAttempt.findFirst({ where: { id, userId, submittedAt: { not: null } } });
+    if (!attempt) { res.status(404).json({ error: 'Submitted test not found.' }); return; }
+
+    await prisma.testQuestion.updateMany({ where: { id: questionId, attemptId: id }, data: { errorType } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Classify error:', err);
+    res.status(500).json({ error: 'Failed to classify error.' });
   }
 });
 

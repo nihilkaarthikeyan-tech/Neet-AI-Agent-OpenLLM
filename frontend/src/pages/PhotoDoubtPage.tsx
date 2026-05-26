@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Camera, Upload, Loader2, CheckCircle2, Lightbulb, X, ImageIcon } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
 interface Solution {
   questionText: string;

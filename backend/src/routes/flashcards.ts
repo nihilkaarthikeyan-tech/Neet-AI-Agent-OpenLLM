@@ -116,6 +116,25 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// SM-2 spaced repetition algorithm
+function sm2(repetitions: number, easeFactor: number, interval: number, quality: number) {
+  // quality: 1=hard, 3=medium, 5=easy
+  let newEF = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  newEF = Math.max(1.3, newEF);
+  let newInterval: number;
+  let newReps: number;
+  if (quality < 3) {
+    newReps = 0;
+    newInterval = 1;
+  } else {
+    newReps = repetitions + 1;
+    if (repetitions === 0) newInterval = 1;
+    else if (repetitions === 1) newInterval = 6;
+    else newInterval = Math.round(interval * easeFactor);
+  }
+  return { repetitions: newReps, easeFactor: newEF, interval: newInterval };
+}
+
 // PATCH /api/flashcards/:id/rate — rate a card and update spaced-repetition schedule
 // Body: { rating: "easy" | "medium" | "hard" }
 router.patch('/:id/rate', authenticate, async (req: AuthRequest, res: Response) => {
@@ -129,24 +148,20 @@ router.patch('/:id/rate', authenticate, async (req: AuthRequest, res: Response) 
       return;
     }
 
-    const card = await prisma.flashcard.findFirst({ where: { id: id as string, userId } });
-    if (!card) {
-      res.status(404).json({ error: 'Flashcard not found.' });
-      return;
-    }
+    const card = await prisma.flashcard.findFirst({ where: { id, userId } });
+    if (!card) { res.status(404).json({ error: 'Flashcard not found.' }); return; }
 
-    // Simple spaced repetition: easy=7 days, medium=3 days, hard=1 day
-    const daysMap: Record<string, number> = { easy: 7, medium: 3, hard: 1 };
+    const qualityMap: Record<string, number> = { hard: 1, medium: 3, easy: 5 };
+    const { repetitions, easeFactor, interval } = sm2(
+      card.repetitions, card.easeFactor, card.interval, qualityMap[rating]
+    );
+
     const nextReview = new Date();
-    nextReview.setDate(nextReview.getDate() + daysMap[rating]);
+    nextReview.setDate(nextReview.getDate() + interval);
 
     const updated = await prisma.flashcard.update({
-      where: { id: id as string },
-      data: {
-        lastRating: rating,
-        nextReview,
-        reviewCount: { increment: 1 },
-      },
+      where: { id },
+      data: { lastRating: rating, nextReview, reviewCount: { increment: 1 }, repetitions, easeFactor, interval },
     });
 
     res.json({ flashcard: updated });

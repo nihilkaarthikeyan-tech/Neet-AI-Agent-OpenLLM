@@ -1,6 +1,5 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -8,12 +7,16 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  name       String?
-  password   String
-  role       String   @default("STUDENT") // "STUDENT" | "TEACHER"
-  created_at DateTime @default(now())
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  password      String?  // nullable for Google OAuth users
+  googleId      String?  @unique
+  role          String   @default("STUDENT") // "STUDENT" | "TEACHER"
+  emailVerified Boolean  @default(false)
+  loginAttempts Int      @default(0)
+  lockedUntil   DateTime?
+  created_at    DateTime @default(now())
 
   studyPlans         StudyPlan[]
   doubtHistory       DoubtMessage[]
@@ -21,40 +24,78 @@ model User {
   flashcards         Flashcard[]
   motivationMessages MotivationMessage[]
   weakAreaCache      WeakAreaCache?
+  otpCodes           OtpCode[]
+  refreshTokens      RefreshToken[]
+
+  @@index([email])
+  @@index([googleId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  type      String   // "EMAIL_VERIFY" | "PASSWORD_RESET"
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, type])
 }
 
 model StudyPlan {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  examDate    DateTime
-  weakSubjects String[]     // e.g. ["Physics", "Organic Chemistry"]
-  planJson    Json          // full AI-generated schedule
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  examDate     DateTime
+  weakSubjects String[]
+  planJson     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model DoubtMessage {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject   String   // "Physics" | "Chemistry" | "Biology"
-  role      String   // "user" | "assistant"
+  subject   String
+  role      String
   content   String   @db.Text
   createdAt DateTime @default(now())
+
+  @@index([userId, subject])
 }
 
 model TestAttempt {
   id          String         @id @default(uuid())
   userId      String
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject     String         // "Physics" | "Chemistry" | "Biology" | "Mixed"
+  subject     String
   totalQ      Int
-  score       Int?           // null until submitted
-  timeTaken   Int?           // seconds elapsed, null until submitted
+  score       Int?
+  timeTaken   Int?
   submittedAt DateTime?
   createdAt   DateTime       @default(now())
   questions   TestQuestion[]
+
+  @@index([userId])
+  @@index([userId, subject])
 }
 
 model TestQuestion {
@@ -67,10 +108,14 @@ model TestQuestion {
   optionB       String      @db.Text
   optionC       String      @db.Text
   optionD       String      @db.Text
-  correctOption String      // "A" | "B" | "C" | "D"
+  correctOption String
   explanation   String      @db.Text
   subject       String
-  userAnswer    String?     // null until answered
+  topic         String      @default("")
+  userAnswer    String?
+  errorType     String?     // "conceptual" | "silly" | "misread" | "time_pressure"
+
+  @@index([attemptId])
 }
 
 model Flashcard {
@@ -81,28 +126,37 @@ model Flashcard {
   topic       String
   front       String   @db.Text
   back        String   @db.Text
-  lastRating  String   @default("medium") // "easy" | "medium" | "hard"
+  lastRating  String   @default("medium")
   nextReview  DateTime @default(now())
   reviewCount Int      @default(0)
+  easeFactor  Float    @default(2.5)
+  interval    Int      @default(1)
+  repetitions Int      @default(0)
   createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, subject])
+  @@index([userId, nextReview])
 }
 
 model MotivationMessage {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      String   // "YYYY-MM-DD"
+  date      String
   message   String   @db.Text
   createdAt DateTime @default(now())
 
   @@unique([userId, date])
+  @@index([userId])
 }
 
 model WeakAreaCache {
   id          String   @id @default(uuid())
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topics      Json     // [{topic, subject, reason, accuracy}]
+  topics      Json
   generatedAt DateTime @default(now())
-}
 
+  @@index([userId])
+}
