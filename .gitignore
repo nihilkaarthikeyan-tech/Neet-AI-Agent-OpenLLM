@@ -13,3 +13,11 @@ report.txt
 plans.txt
 read_docx.py
 *.docx
+
+# Planning / manager docs — kept locally, NOT pushed to GitHub (code-only repo)
+GOVERNMENT_VERSION_OPENSOURCE_LLM_PLAN.md
+MASTER_PROJECT_PLAN.md
+MIGRATION_PLAN_FOR_MANAGER.md
+NEET_AI_PLATFORM_COMPLETE_GUIDE.md
+OPENSOURCE_LLM_BUILD_SPEC.md
+PROJECT_ACTION_PLAN.md
