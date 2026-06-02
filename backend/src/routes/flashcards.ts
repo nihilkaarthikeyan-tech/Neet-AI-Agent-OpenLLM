@@ -1,9 +1,16 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSONArray } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const FlashcardSchema = z.object({
+  front: z.string(),
+  back: z.string(),
+  topic: z.string().optional(),
+});
 
 // POST /api/flashcards/generate
 // Body: { subject: string, topic: string, count: number }
@@ -29,40 +36,30 @@ Each flashcard should:
 - Have a clear, detailed explanation or answer on the BACK
 - Cover important facts, formulas, diagrams descriptions, or conceptual questions
 
-Return ONLY a valid JSON array. Do not include markdown or any text before or after. Use this exact structure:
-[
+Each flashcard object must use this exact structure:
   {
     "front": "What is the powerhouse of the cell?",
     "back": "Mitochondria — It produces ATP via cellular respiration (oxidative phosphorylation). Has its own DNA and double membrane (inner membrane folded into cristae).",
     "topic": "${topic}"
-  }
-]`;
+  }`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 6000,
-      temperature: 0.5,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'Unexpected response from AI.' });
-      return;
-    }
-
-    let cards: Array<{ front: string; back: string; topic: string }>;
+    let cards: Array<z.infer<typeof FlashcardSchema>>;
     try {
-      const rawText = aiContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      cards = JSON.parse(rawText);
+      cards = await chatJSONArray({
+        user: prompt,
+        itemSchema: FlashcardSchema,
+        maxTokens: 6000,
+        temperature: 0.5,
+        feature: 'flashcards-generate',
+      });
     } catch (e) {
-      console.error('Failed to parse Claude JSON for flashcards:', aiContent.text);
-      res.status(500).json({ error: 'Failed to parse AI-generated flashcards.' });
+      console.error('Flashcard generation failed:', e);
+      res.status(503).json({ error: 'Could not generate flashcards right now. Please try again.' });
       return;
     }
 
-    if (!Array.isArray(cards) || cards.length === 0) {
-      res.status(500).json({ error: 'AI returned no flashcards.' });
+    if (cards.length === 0) {
+      res.status(503).json({ error: 'AI returned no flashcards. Please try again.' });
       return;
     }
 

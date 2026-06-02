@@ -1,8 +1,20 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSONArray } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const NcertQuestionSchema = z.object({
+  question: z.string(),
+  optionA: z.string(),
+  optionB: z.string(),
+  optionC: z.string(),
+  optionD: z.string(),
+  correct: z.string(),
+  explanation: z.string(),
+  ncertLine: z.string().optional(),
+});
 
 const CHAPTERS: Record<string, Record<string, string[]>> = {
   Physics: {
@@ -46,39 +58,28 @@ Generate exactly ${count} MCQs strictly from NCERT ${subject} chapter: "${chapte
 Questions must test line-by-line NCERT content — definitions, diagrams, examples, and facts exactly as stated in the NCERT textbook.
 Every question must have 4 options (A/B/C/D) with exactly one correct answer.
 
-Return ONLY a valid JSON array, no markdown:
-[
+Each question object must use this exact structure:
   {
     "question": "Question text?",
     "optionA": "...", "optionB": "...", "optionC": "...", "optionD": "...",
     "correct": "A",
     "explanation": "Detailed explanation referencing the NCERT concept.",
     "ncertLine": "The exact or paraphrased NCERT line this tests."
-  }
-]`;
+  }`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 8000,
-      temperature: 0.3,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'AI response error.' }); return;
-    }
-
-    let questions: Array<{
-      question: string; optionA: string; optionB: string; optionC: string; optionD: string;
-      correct: string; explanation: string; ncertLine: string;
-    }>;
-
+    let questions: Array<z.infer<typeof NcertQuestionSchema>>;
     try {
-      const raw = aiContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      questions = JSON.parse(raw);
-    } catch {
-      res.status(500).json({ error: 'Failed to parse AI response.' }); return;
+      questions = await chatJSONArray({
+        user: prompt,
+        itemSchema: NcertQuestionSchema,
+        maxTokens: 8000,
+        temperature: 0.3,
+        feature: 'ncert-quiz',
+      });
+    } catch (e) {
+      console.error('NCERT quiz generation failed:', e);
+      res.status(503).json({ error: 'Could not generate the quiz right now. Please try again.' });
+      return;
     }
 
     res.json({ questions, subject, chapter });

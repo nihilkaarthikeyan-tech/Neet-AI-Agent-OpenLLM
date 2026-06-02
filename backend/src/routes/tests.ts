@@ -1,9 +1,22 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSONArray } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const TestQuestionSchema = z.object({
+  question: z.string(),
+  optionA: z.string(),
+  optionB: z.string(),
+  optionC: z.string(),
+  optionD: z.string(),
+  correct: z.string(),
+  explanation: z.string(),
+  subject: z.string().optional(),
+  topic: z.string().optional(),
+});
 
 // POST /api/tests/generate
 // Body: { subject: string, count: number, adaptive?: boolean }
@@ -31,8 +44,7 @@ router.post('/generate', authenticate, async (req: AuthRequest, res: Response) =
 Generate exactly ${count} high-quality multiple-choice questions for the subject: ${subject}.${weakTopicsHint}
 Each question must be NEET-level difficulty and have exactly 4 options (A, B, C, D) with one correct answer.
 
-Return ONLY a valid JSON array. Do not include markdown or any text before or after. Use this exact structure:
-[
+Each question object must use this exact structure:
   {
     "question": "The question text here?",
     "optionA": "First option",
@@ -43,46 +55,25 @@ Return ONLY a valid JSON array. Do not include markdown or any text before or af
     "explanation": "A detailed explanation of why the correct answer is right and why the others are wrong.",
     "subject": "${subject}",
     "topic": "Topic name (e.g. Thermodynamics, Cell Division)"
-  }
-]`;
+  }`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 8000,
-      temperature: 0.4,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'Unexpected response from AI.' });
-      return;
-    }
-
-    let questions: Array<{
-      question: string;
-      optionA: string;
-      optionB: string;
-      optionC: string;
-      optionD: string;
-      correct: string;
-      explanation: string;
-      subject: string;
-      topic?: string;
-    }>;
-
+    let questions: Array<z.infer<typeof TestQuestionSchema>>;
     try {
-      // Strip markdown code fences if present
-      const rawText = aiContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      questions = JSON.parse(rawText);
+      questions = await chatJSONArray({
+        user: prompt,
+        itemSchema: TestQuestionSchema,
+        maxTokens: 8000,
+        temperature: 0.4,
+        feature: 'tests-generate',
+      });
     } catch (e) {
-      console.error('Failed to parse Claude JSON for test questions:', aiContent.text);
-      res.status(500).json({ error: 'Failed to parse AI-generated questions.' });
+      console.error('Test generation failed:', e);
+      res.status(503).json({ error: 'Could not generate questions right now. Please try again.' });
       return;
     }
 
-    if (!Array.isArray(questions) || questions.length === 0) {
-      res.status(500).json({ error: 'AI returned no questions.' });
+    if (questions.length === 0) {
+      res.status(503).json({ error: 'AI returned no questions. Please try again.' });
       return;
     }
 

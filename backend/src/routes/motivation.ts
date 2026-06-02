@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatText } from '../lib/llm.js';
 
 const router = Router();
 
@@ -51,20 +51,17 @@ Write ONE powerful, concise motivational message (3–5 sentences). Be specific,
 
 Return ONLY the message text. No JSON. No title.`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 400,
+    const message = await chatText({
+      user: prompt,
+      maxTokens: 400,
       temperature: 0.8,
-      messages: [{ role: 'user', content: prompt }],
+      feature: 'motivation-daily',
     });
 
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'Failed to generate message.' });
+    if (!message) {
+      res.status(503).json({ error: 'Failed to generate message. Please try again.' });
       return;
     }
-
-    const message = aiContent.text.trim();
 
     // Cache in DB
     await prisma.motivationMessage.create({

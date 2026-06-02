@@ -1,8 +1,7 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages.mjs';
+import { chatStream, chatText, type ChatMessage } from '../lib/llm.js';
 
 const router = Router();
 
@@ -49,22 +48,22 @@ router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // 2. Retrieve last 6 messages for context (most recent first, then reverse for Claude)
+    // 2. Retrieve last 6 messages for context (most recent first, then reverse)
     const history = await prisma.doubtMessage.findMany({
       where: { userId, subject },
       orderBy: { createdAt: 'desc' },
       take: 6,
     });
-    history.reverse(); // oldest first so Claude sees the conversation in order
+    history.reverse(); // oldest first so the model sees the conversation in order
 
-    // 3. Format history for Claude
-    let messages: MessageParam[] = history.map((msg: { role: string; content: string }) => ({
+    // 3. Format history for the model
+    let messages: ChatMessage[] = history.map((msg: { role: string; content: string }) => ({
       role: msg.role === 'user' ? 'user' : 'assistant',
       content: msg.content,
     }));
 
-    // Anthropic API constraints: Alternate roles, first message must be user.
-    const mergedMessages: MessageParam[] = [];
+    // Keep a clean conversation: merge consecutive same-role turns, start with user.
+    const mergedMessages: ChatMessage[] = [];
     for (const msg of messages) {
       if (mergedMessages.length > 0 && mergedMessages[mergedMessages.length - 1].role === msg.role) {
         mergedMessages[mergedMessages.length - 1].content += '\n\n' + msg.content;
@@ -100,25 +99,20 @@ CORE BEHAVIOR RULES:
 NEVER say "I cannot provide question papers" — you CAN and you WILL generate high-quality NEET-standard MCQs on any ${subject} topic instantly.`;
 
 
-    // 6. Stream from Anthropic
-    const stream = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 4096,
-      temperature: 0.7,
-      system: systemPrompt,
-      messages,
-      stream: true,
-    });
-
+    // 6. Stream from the open-source LLM. The helper yields plain text deltas;
+    //    we re-wrap them in the exact same SSE envelope the frontend expects.
     let fullAssistantResponse = '';
 
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        const text = chunk.delta.text;
-        fullAssistantResponse += text;
-        // Write the chunk back to the client immediately
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
+    for await (const text of chatStream({
+      messages,
+      system: systemPrompt,
+      maxTokens: 4096,
+      temperature: 0.7,
+      feature: 'tutor-chat',
+    })) {
+      fullAssistantResponse += text;
+      // Write the chunk back to the client immediately
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
     }
 
     // 7. Stream finished, save assistant's response to DB
@@ -172,13 +166,13 @@ router.post('/voice-chat', authenticate, async (req: AuthRequest, res: Response)
     });
     history.reverse();
 
-    let messages: MessageParam[] = history.map((msg: { role: string; content: string }) => ({
+    let messages: ChatMessage[] = history.map((msg: { role: string; content: string }) => ({
       role: msg.role === 'user' ? 'user' : 'assistant',
       content: msg.content,
     }));
 
     // Merge consecutive same-role messages
-    const mergedMessages: MessageParam[] = [];
+    const mergedMessages: ChatMessage[] = [];
     for (const msg of messages) {
       if (mergedMessages.length > 0 && mergedMessages[mergedMessages.length - 1].role === msg.role) {
         mergedMessages[mergedMessages.length - 1].content += '\n\n' + msg.content;
@@ -193,15 +187,13 @@ router.post('/voice-chat', authenticate, async (req: AuthRequest, res: Response)
 
     const systemPrompt = `You are an expert NEET exam coach specializing in ${subject} for Indian medical entrance aspirants. The student is speaking to you via voice, so keep your response concise, clear, and conversational — 2-4 sentences maximum. No markdown, no bullet points. Speak naturally as you would in a phone call. Be encouraging and exam-focused. Always respond in English only, regardless of the language the student uses.`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 400,
-      temperature: 0.7,
-      system: systemPrompt,
+    const aiText = await chatText({
       messages,
+      system: systemPrompt,
+      maxTokens: 400,
+      temperature: 0.7,
+      feature: 'tutor-voice',
     });
-
-    const aiText = response.content[0].type === 'text' ? response.content[0].text : '';
 
     // Save assistant response
     await prisma.doubtMessage.create({

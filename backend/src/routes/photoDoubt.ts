@@ -1,10 +1,20 @@
 import { Router, type Response } from 'express';
 import multer from 'multer';
-import OpenAI from 'openai';
+import { z } from 'zod';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
+import { chatVisionJSON } from '../lib/llm.js';
 
 const router = Router();
+
+const PhotoSolutionSchema = z.object({
+  questionText: z.string(),
+  answer: z.string(),
+  steps: z.array(z.string()),
+  concept: z.string().optional().default(''),
+  memoryTip: z.string().optional().default(''),
+  subject: z.string().optional(),
+});
 
 // In-memory storage — we convert to base64 and send to OpenAI, no disk needed
 const upload = multer({
@@ -18,8 +28,6 @@ const upload = multer({
     }
   },
 });
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const DAILY_LIMIT = 10;
 
@@ -86,37 +94,21 @@ Return ONLY valid JSON. No markdown. Use this structure:
 
 If the image is unclear or not a question, set questionText to "Image unclear" and explain in the steps array.`;
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 1500,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mediaType};base64,${base64Image}`,
-                  detail: 'high',
-                },
-              },
-              { type: 'text', text: prompt },
-            ],
-          },
-        ],
-      });
-
-      const aiText = response.choices[0]?.message?.content ?? '';
-
       let solution: unknown;
       try {
-        const raw = aiText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        solution = JSON.parse(raw);
+        solution = await chatVisionJSON({
+          imageDataUrl: `data:${mediaType};base64,${base64Image}`,
+          prompt,
+          schema: PhotoSolutionSchema,
+          maxTokens: 1500,
+          feature: 'photo-doubt',
+        });
       } catch {
+        // Graceful fallback — never throw a raw 500 at the student.
         solution = {
-          questionText: 'Could not parse image',
+          questionText: 'Could not read the image clearly',
           answer: 'See explanation',
-          steps: [aiText],
+          steps: ['Could not process this image. Try a clearer, well-lit photo and retake it.'],
           concept: '',
           memoryTip: '',
           subject,

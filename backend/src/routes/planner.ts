@@ -1,9 +1,20 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSON } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const StudyPlanSchema = z.object({
+  plan: z.array(
+    z.object({
+      day: z.string(),
+      focus: z.string(),
+      tasks: z.array(z.string()),
+    }),
+  ),
+});
 
 // GET /api/planner — fetch the user's most recent study plan
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
@@ -35,7 +46,7 @@ router.post('/generate', authenticate, async (req: AuthRequest, res: Response) =
 
     const userId = req.userId!;
 
-    // 1. Send prompt to Claude to get a JSON study plan
+    // 1. Send prompt to the LLM to get a JSON study plan
     const prompt = `You are an expert NEET (National Eligibility cum Entrance Test in India) coach and study planner.
 A student needs a day-by-day study plan. 
 Exam Date: ${examDate}
@@ -43,7 +54,7 @@ Their weakest subjects right now: ${weakSubjects.join(', ')}
 
 Create a concise, structured 7-day study plan focusing heavily on their weakest subjects but maintaining a balance with other NEET subjects (Physics, Chemistry, Biology). 
 
-Return ONLY valid JSON covering 7 days. Use exactly this structure:
+The JSON object must cover 7 days using exactly this structure:
 {
   "plan": [
     {
@@ -52,31 +63,21 @@ Return ONLY valid JSON covering 7 days. Use exactly this structure:
       "tasks": ["Task 1", "Task 2 - Revise organic chem", "Task 3 - Mock test section"]
     }
   ]
-}
-Do not include markdown blocks or any other text before or after the JSON.`;
+}`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1500,
-      temperature: 0.2, // Low temperature for deterministic JSON structure
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
     let parsedPlan;
-    if (aiContent && aiContent.type === 'text') {
-      try {
-         // Strip markdown code fences if Claude wraps the JSON
-         const cleaned = aiContent.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-         parsedPlan = JSON.parse(cleaned);
-      } catch (e) {
-         console.error("Failed to parse Claude output as JSON:", aiContent.text);
-         res.status(500).json({ error: 'Failed to generate study plan structure.' });
-         return;
-      }
-    } else {
-        res.status(500).json({ error: 'Unexpected response from AI provider.' });
-        return;
+    try {
+      parsedPlan = await chatJSON({
+        user: prompt,
+        schema: StudyPlanSchema,
+        maxTokens: 1500,
+        temperature: 0.2, // Low temperature for deterministic JSON structure
+        feature: 'planner-generate',
+      });
+    } catch (e) {
+      console.error('Study plan generation failed:', e);
+      res.status(503).json({ error: 'Could not generate a study plan right now. Please try again.' });
+      return;
     }
 
     // 2. Save the generated plan to the database

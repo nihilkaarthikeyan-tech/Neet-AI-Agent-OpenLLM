@@ -1,9 +1,18 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSONArray } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const WeakAreaSchema = z.object({
+  topic: z.string(),
+  subject: z.string(),
+  reason: z.string(),
+  accuracy: z.number(),
+  recommendation: z.string(),
+});
 
 // GET /api/analytics — subject accuracy + score timeline from real test data
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
@@ -120,36 +129,27 @@ Based on this data, identify the top 3–5 weak areas that need improvement. For
 4. An accuracy estimate (0–100)
 5. A specific recommendation to improve
 
-Return ONLY a valid JSON array. No markdown. No extra text. Use this exact structure:
-[
+Each weak-area object must use this exact structure:
   {
     "topic": "topic name",
     "subject": "Physics | Chemistry | Biology",
     "reason": "brief explanation of the weakness",
     "accuracy": 35,
     "recommendation": "Specific study tip"
-  }
-]`;
+  }`;
 
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1500,
-      temperature: 0.3,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'Unexpected AI response.' });
-      return;
-    }
-
-    let weakAreas: unknown[];
+    let weakAreas: Array<z.infer<typeof WeakAreaSchema>>;
     try {
-      const raw = aiContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      weakAreas = JSON.parse(raw);
-    } catch {
-      res.status(500).json({ error: 'Failed to parse AI response.' });
+      weakAreas = await chatJSONArray({
+        user: prompt,
+        itemSchema: WeakAreaSchema,
+        maxTokens: 1500,
+        temperature: 0.3,
+        feature: 'analytics-weak-areas',
+      });
+    } catch (e) {
+      console.error('Weak-area analysis failed:', e);
+      res.status(503).json({ error: 'Could not analyze weak areas right now. Please try again.' });
       return;
     }
 

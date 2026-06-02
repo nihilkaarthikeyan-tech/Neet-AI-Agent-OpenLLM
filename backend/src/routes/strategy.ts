@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatStream } from '../lib/llm.js';
 import { prisma } from '../db.js';
 
 const router = Router();
@@ -60,17 +60,13 @@ router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const stream = await anthropic.messages.stream({
-      model: CLAUDE_MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+    for await (const text of chatStream({
       messages,
-    });
-
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        res.write(`data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`);
-      }
+      system: SYSTEM_PROMPT,
+      maxTokens: 1024,
+      feature: 'strategy-chat',
+    })) {
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
     }
     res.write('data: [DONE]\n\n');
     res.end();

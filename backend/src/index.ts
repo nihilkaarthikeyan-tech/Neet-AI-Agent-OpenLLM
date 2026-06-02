@@ -4,7 +4,8 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { type Store } from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
 import { logger } from './lib/logger.js';
 import { redis } from './lib/redis.js';
 import { prisma, pool } from './db.js';
@@ -68,7 +69,21 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ── Rate limiting (in-memory, swap to Redis store for multi-instance) ──
+// ── Rate limiting ────────────────────────────────────────
+// Use a shared Redis store in production so counters are consistent across
+// multiple backend instances. In dev (or if Redis is unset) fall back to the
+// in-memory store. In prod, docker-compose only starts the backend once Redis
+// is healthy, so the store is guaranteed to be reachable.
+const useRedisStore = process.env.NODE_ENV === 'production';
+
+function makeRedisStore(prefix: string): Store {
+  return new RedisStore({
+    prefix,
+    // ioredis: forward the raw command so the limiter scripts run on Redis.
+    sendCommand: (...args: string[]) => redis.call(args[0], ...args.slice(1)) as Promise<never>,
+  });
+}
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
@@ -81,6 +96,7 @@ const globalLimiter = rateLimit({
   },
   validate: false,
   message: { error: 'Too many requests. Please try again later.' },
+  ...(useRedisStore && { store: makeRedisStore('rl:global:') }),
 });
 
 const authLimiter = rateLimit({
@@ -89,7 +105,10 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Try again later.' },
+  ...(useRedisStore && { store: makeRedisStore('rl:auth:') }),
 });
+
+if (useRedisStore) logger.info('Rate limiting using shared Redis store');
 
 app.use(globalLimiter);
 

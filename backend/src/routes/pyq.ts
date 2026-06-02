@@ -1,8 +1,17 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { anthropic, CLAUDE_MODEL } from '../lib/claude.js';
+import { chatJSON } from '../lib/llm.js';
+import { z } from 'zod';
 
 const router = Router();
+
+const PyqSolutionSchema = z.object({
+  answer: z.string(),
+  steps: z.array(z.string()),
+  concept: z.string().optional().default(''),
+  memoryTip: z.string().optional().default(''),
+  difficulty: z.string().optional().default('Medium'),
+});
 
 // POST /api/pyq/ask — AI step-by-step solution for a PYQ
 // Body: { question: string, subject: string, year?: number }
@@ -42,30 +51,26 @@ Format your response in this exact JSON structure:
   "concept": "The key concept being tested",
   "memoryTip": "A helpful tip or shortcut to remember this",
   "difficulty": "Easy | Medium | Hard"
-}
-
-Return ONLY the JSON. No markdown fences.`;
-
-    const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1500,
-      temperature: 0.2,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const aiContent = response.content[0];
-    if (!aiContent || aiContent.type !== 'text') {
-      res.status(500).json({ error: 'Unexpected AI response.' });
-      return;
-    }
+}`;
 
     let solution: unknown;
     try {
-      const raw = aiContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      solution = JSON.parse(raw);
+      solution = await chatJSON({
+        user: prompt,
+        schema: PyqSolutionSchema,
+        maxTokens: 1500,
+        temperature: 0.2,
+        feature: 'pyq-ask',
+      });
     } catch {
-      // If not valid JSON, return as plain text solution
-      solution = { answer: 'See explanation', steps: [aiContent.text], concept: '', memoryTip: '', difficulty: 'Medium' };
+      // Graceful fallback — never throw a raw 500 at the student.
+      solution = {
+        answer: 'See explanation',
+        steps: ['Could not generate a structured solution this time. Please try again.'],
+        concept: '',
+        memoryTip: '',
+        difficulty: 'Medium',
+      };
     }
 
     res.json({ solution });

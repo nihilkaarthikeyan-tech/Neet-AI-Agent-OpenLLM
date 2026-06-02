@@ -7,9 +7,9 @@ services:
     container_name: neet_postgres
     restart: always
     environment:
-      POSTGRES_USER: neet_user
-      POSTGRES_PASSWORD: NeetAI@Secure2026
-      POSTGRES_DB: neet_ai
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5433:5432"
     volumes:
@@ -59,7 +59,12 @@ services:
       REFRESH_SECRET: ${REFRESH_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       BACKEND_URL: ${BACKEND_URL}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # ── Open-source LLM provider (Together AI for testing → self-hosted vLLM in prod) ──
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL_TEXT: ${LLM_MODEL_TEXT}
+      LLM_MODEL_VISION: ${LLM_MODEL_VISION}
+      # OPENAI_API_KEY kept only if Photo Doubt stays on GPT-4o; safe to leave unset once on Qwen Vision
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -84,18 +89,6 @@ services:
     restart: always
     ports:
       - "8080:80"
-    networks:
-      - external
-
-  # ── rademics.ai Marketplace Frontend ─────────────────────
-  rademics_frontend:
-    build:
-      context: /opt/rademics-ai/frontend
-      dockerfile: Dockerfile.prod
-    container_name: rademics_frontend
-    restart: always
-    ports:
-      - "3080:80"
     networks:
       - external
 

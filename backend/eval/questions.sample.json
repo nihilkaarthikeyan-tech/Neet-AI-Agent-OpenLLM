@@ -1,0 +1,41 @@
+[
+  {
+    "id": "phy-001",
+    "subject": "Physics",
+    "topic": "Laws of Motion",
+    "question": "A body of mass 2 kg moving at 4 m/s is brought to rest in 2 s by a constant force. What is the magnitude of the force?",
+    "options": {
+      "A": "2 N",
+      "B": "4 N",
+      "C": "8 N",
+      "D": "16 N"
+    },
+    "correct": "B"
+  },
+  {
+    "id": "chem-001",
+    "subject": "Chemistry",
+    "topic": "Some Basic Concepts",
+    "question": "The number of moles of CO2 that contain 8.0 g of oxygen is:",
+    "options": {
+      "A": "0.25",
+      "B": "0.50",
+      "C": "1.00",
+      "D": "1.50"
+    },
+    "correct": "A"
+  },
+  {
+    "id": "bio-001",
+    "subject": "Biology",
+    "topic": "Cell: Unit of Life",
+    "question": "Which of the following is NOT a membrane-bound organelle?",
+    "options": {
+      "A": "Mitochondrion",
+      "B": "Lysosome",
+      "C": "Ribosome",
+      "D": "Golgi apparatus"
+    },
+    "correct": "C"
+  }
+]
