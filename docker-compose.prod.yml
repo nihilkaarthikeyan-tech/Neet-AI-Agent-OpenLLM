@@ -64,8 +64,6 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL}
       LLM_MODEL_TEXT: ${LLM_MODEL_TEXT}
       LLM_MODEL_VISION: ${LLM_MODEL_VISION}
-      # OPENAI_API_KEY kept only if Photo Doubt stays on GPT-4o; safe to leave unset once on Qwen Vision
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       SMTP_HOST: ${SMTP_HOST}

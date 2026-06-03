@@ -10,6 +10,9 @@
  * validation, a single automatic retry on bad JSON, and per-feature token
  * usage logging.
  */
+// The 'openai' npm package is used purely as an OpenAI-compatible HTTP client.
+// It is NOT calling OpenAI — it is calling Together AI (or any self-hosted vLLM).
+// No Anthropic/Claude or OpenAI credentials are used anywhere in this app.
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { logger } from './logger.js';
