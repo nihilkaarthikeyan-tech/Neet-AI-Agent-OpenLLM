@@ -74,7 +74,7 @@ export default function OutcomesPage() {
         <div style={{ display: 'flex', gap: '6px', marginBottom: '1.5rem' }}>
           {(['my', 'cohort'] as const).map((t) => (
             <button key={t} onClick={() => switchTab(t)}
-              style={{ padding: '7px 18px', borderRadius: '8px', border: 'none', fontWeight: 600, fontSize: '13px', cursor: 'pointer', background: tab === t ? 'var(--accent)' : 'var(--bg-surface)', color: tab === t ? '#fff' : 'var(--text-secondary)', border: `1px solid ${tab === t ? 'transparent' : 'var(--border)'}` }}>
+              style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', background: tab === t ? 'var(--accent)' : 'var(--bg-surface)', color: tab === t ? '#fff' : 'var(--text-secondary)', border: `1px solid ${tab === t ? 'transparent' : 'var(--border)'}` }}>
               {t === 'my' ? (isTa ? '🎯 என் பயணம்' : '🎯 My Journey') : (isTa ? '👥 மாணவர் குழு' : '👥 Cohort View')}
             </button>
           ))}
@@ -237,7 +237,7 @@ export default function OutcomesPage() {
                       <YAxis domain={[0, 720]} tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
                       <Tooltip
                         contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px' }}
-                        formatter={(v: number, name: string) => [v, name === 'score' ? 'Avg Score /720' : 'Students']}
+                        formatter={(v, name) => [v, name === 'score' ? 'Avg Score /720' : 'Students']}
                       />
                       <Line type="monotone" dataKey="score" stroke="var(--accent)" strokeWidth={2.5} dot={{ r: 4 }} name="score" />
                     </LineChart>

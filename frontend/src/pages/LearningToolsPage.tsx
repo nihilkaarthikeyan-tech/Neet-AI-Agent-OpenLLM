@@ -478,7 +478,7 @@ export default function LearningToolsPage() {
     resetOutput();
     try {
       const data = await api.post<Record<string, unknown>>(`/api/learning-tools/${endpoint}`, { ...body, language });
-      setOutput({ type: endpoint as ToolOutput['type'], data } as ToolOutput);
+      setOutput({ type: endpoint as ToolOutput['type'], data } as unknown as ToolOutput);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate. Please try again.');
     } finally {
@@ -574,7 +574,7 @@ export default function LearningToolsPage() {
       await api.post('/api/learning-tools/save', {
         toolType: output.type,
         title,
-        content: output.data as Record<string, unknown>,
+        content: output.data as unknown as Record<string, unknown>,
       });
       loadSaved();
     } catch { /* ignore */ }
