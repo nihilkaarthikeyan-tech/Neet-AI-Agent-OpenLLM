@@ -3,6 +3,7 @@ import { Users, Plus, FileText, ShieldCheck, ClipboardList, Loader2 } from 'luci
 import { api } from '../lib/api';
 import { useLang } from '../lib/useLang';
 import { useAuthStore } from '../store/authStore';
+import MarkdownText from '../components/MarkdownText';
 
 interface Student { id: string; name: string | null; email: string; district: string | null; school: string | null; diagnosticCompleted: boolean; latestScoreEstimate: number | null; _count: { testAttempts: number; doubtHistory: number } }
 interface ClassReport { report: string | null; weakTopics: { topic: string; accuracy: number; total: number }[]; studentsAnalysed: number; questionsAnalysed: number; message?: string }
@@ -221,7 +222,7 @@ export default function TeacherPortalPage() {
                 <FileText size={14} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
                 AI-Generated Class Report
               </h3>
-              <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>{report.report}</p>
+              <MarkdownText content={report.report} style={{ fontSize: '0.875rem', color: '#374151' }} />
             </div>
           )}
           {!loadingReport && !report && (

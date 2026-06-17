@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../lib/api';
 import { useLang } from '../lib/useLang';
+import MarkdownText from '../components/MarkdownText';
 
 interface CareerPath { name: string; duration: string; seats: string; neetRequired: boolean; avgSalary: string; description: string }
 interface CareerCategory { category: string; paths: CareerPath[] }
@@ -70,9 +71,7 @@ export default function CareerPage() {
           {loading ? (isTa ? 'வழிகாட்டுதல் வருகிறது…' : 'Getting guidance…') : isTa ? 'வழிகாட்டுதல் பெறுக →' : 'Get Guidance →'}
         </button>
         {guide && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff', borderRadius: '8px', fontSize: '0.875rem', lineHeight: 1.75, color: '#374151', whiteSpace: 'pre-wrap' }}>
-            {guide}
-          </div>
+          <MarkdownText content={guide} style={{ marginTop: '1rem', padding: '1rem', background: '#fff', borderRadius: '8px', fontSize: '0.875rem', color: '#374151' }} />
         )}
       </div>
 

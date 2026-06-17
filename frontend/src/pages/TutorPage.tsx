@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, Send, Bot, User as UserIcon, Smile } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../lib/api';
+import MarkdownText from '../components/MarkdownText';
 
 type Message = {
   id: string;
@@ -278,24 +279,18 @@ export default function TutorPage() {
                     Teacher Verified
                   </div>
                 )}
-                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '14px' }}>
-                  {msg.id === streamingId && msg.content ? (() => {
-                    const lastSpace = msg.content.lastIndexOf(' ');
-                    const before = lastSpace === -1 ? '' : msg.content.slice(0, lastSpace + 1);
-                    const currentWord = lastSpace === -1 ? msg.content : msg.content.slice(lastSpace + 1);
-                    return (
-                      <>
-                        {before}
-                        <span className="chat-word-cursor">{currentWord}<span className="chat-cursor">▋</span></span>
-                      </>
-                    );
-                  })() : (
-                    <>
-                      {msg.content}
-                      {msg.id === streamingId && <span className="chat-cursor">▋</span>}
-                    </>
-                  )}
-                </p>
+                {msg.id === streamingId && msg.content ? (
+                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '14px' }}>
+                    {(() => {
+                      const lastSpace = msg.content.lastIndexOf(' ');
+                      const before = lastSpace === -1 ? '' : msg.content.slice(0, lastSpace + 1);
+                      const currentWord = lastSpace === -1 ? msg.content : msg.content.slice(lastSpace + 1);
+                      return <>{before}<span className="chat-word-cursor">{currentWord}<span className="chat-cursor">▋</span></span></>;
+                    })()}
+                  </p>
+                ) : (
+                  <MarkdownText content={msg.content} style={{ fontSize: '14px' }} />
+                )}
               </div>
             </div>
           ))}

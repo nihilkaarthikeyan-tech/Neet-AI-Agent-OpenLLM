@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
+import MarkdownText from '../components/MarkdownText';
 
 const MOODS = [
   { value: 'great',       emoji: '😄', label: 'Great',       labelTa: 'நன்றாக இருக்கிறேன்',   color: '#059669' },
@@ -118,7 +119,7 @@ export default function WellbeingPage() {
           ) : (
             /* Normal path */
             <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '1.5rem', marginBottom: '1rem' }}>
-              <p style={{ color: '#166534', fontSize: '0.95rem', lineHeight: 1.75, margin: '0 0 1.25rem', whiteSpace: 'pre-wrap' }}>{result.message}</p>
+              <MarkdownText content={result.message} style={{ color: '#166534', fontSize: '0.95rem', marginBottom: '1.25rem' }} />
 
               {/* Always show helplines — NEET stress is real */}
               <details style={{ marginTop: '0.5rem' }}>

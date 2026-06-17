@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Trophy, Send, Bot, User as UserIcon, Lightbulb } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useLang } from '../lib/useLang';
+import MarkdownText from '../components/MarkdownText';
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string };
 
@@ -164,12 +165,10 @@ export default function ExamStrategyPage() {
                 {msg.role === 'user' ? <UserIcon size={16} /> : <Trophy size={16} />}
               </div>
               <div className="chat-bubble">
-                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '14px' }}>
-                  {msg.id === streamingId
-                    ? <>{renderContent(msg.content)}<span className="chat-cursor">▋</span></>
-                    : <>{renderContent(msg.content)}{msg.id === streamingId && <span className="chat-cursor">▋</span>}</>
-                  }
-                </p>
+                {msg.id === streamingId
+                  ? <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '14px' }}>{renderContent(msg.content)}<span className="chat-cursor">▋</span></p>
+                  : <MarkdownText content={msg.content} style={{ fontSize: '14px' }} />
+                }
               </div>
             </div>
           ))}
