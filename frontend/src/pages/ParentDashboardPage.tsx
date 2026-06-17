@@ -132,7 +132,7 @@ export default function ParentDashboardPage() {
         {totalChapters > 0 && (
           <div style={{ ...cardStyle, marginBottom: '16px' }}>
             <p style={{ fontWeight: 700, color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>NCERT Chapter Progress</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
+            <div className="parent-chapter-grid">
               {[
                 { label: 'Done', count: chapters.done, color: '#22c55e' },
                 { label: 'Revised', count: chapters.revised, color: '#6366f1' },

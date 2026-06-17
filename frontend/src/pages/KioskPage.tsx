@@ -56,7 +56,7 @@ export default function KioskPage() {
         </p>
 
         {/* What's available */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '2rem' }}>
+        <div className="kiosk-feature-grid">
           {[
             { icon: <BookOpen size={20} />, label: isTa ? 'PYQ அட்டைகள்' : 'PYQ Flashcards', desc: isTa ? 'கடந்த NEET வினாக்கள் பயிற்சி' : 'Practice past NEET questions', color: '#7c3aed' },
             { icon: <FlaskConical size={20} />, label: isTa ? 'சொல்லகராதி' : 'Vocabulary', desc: isTa ? '600 NEET சொற்கள்' : 'Browse 600 NEET terms', color: '#059669' },
