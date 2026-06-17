@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { chatJSON } from '../lib/llm.js';
+import { chatJSON, MODELS } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -57,7 +58,9 @@ Format your response in this exact JSON structure:
     try {
       solution = await chatJSON({
         user: prompt,
+        system: NEET_GEN_SYSTEM,
         schema: PyqSolutionSchema,
+        model: MODELS.reasoning,
         maxTokens: 1500,
         temperature: 0.2,
         feature: 'pyq-ask',

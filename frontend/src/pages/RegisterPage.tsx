@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
@@ -20,12 +21,12 @@ export default function RegisterPage() {
       setError('Password must be at least 8 characters');
       return;
     }
+    if (!consentGiven) {
+      setError('Please accept the Privacy Policy to continue (required under the DPDP Act 2023)');
+      return;
+    }
     try {
-      let captchaToken: string | undefined;
-      if ((window as any).grecaptcha) {
-        captchaToken = await (window as any).grecaptcha.execute('6LcKkPAsAAAAM5s0sDbYeXX4Z7CRPfZbJvfsJXC', { action: 'register' });
-      }
-      await register(email, password, name, 'STUDENT', captchaToken);
+      await register(email, password, name, 'STUDENT', undefined, consentGiven);
       navigate('/verify-email');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -159,7 +160,25 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button id="register-submit" type="submit" className="btn-primary" disabled={isLoading}>
+            {/* DPDP Act 2023 consent */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', padding: '10px 12px', borderRadius: '8px', border: `1px solid ${consentGiven ? 'rgba(5,150,105,0.4)' : 'var(--border)'}`, background: consentGiven ? 'rgba(5,150,105,0.04)' : 'var(--bg-surface)' }}>
+              <input
+                type="checkbox"
+                checked={consentGiven}
+                onChange={(e) => setConsentGiven(e.target.checked)}
+                style={{ marginTop: '2px', flexShrink: 0, accentColor: 'var(--accent)' }}
+              />
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                I have read and agree to the{' '}
+                <Link to="/privacy" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+                  Privacy Policy
+                </Link>{' '}
+                and consent to the processing of my personal data for NEET preparation services, as required under the{' '}
+                <strong>Digital Personal Data Protection Act, 2023</strong>.
+              </span>
+            </label>
+
+            <button id="register-submit" type="submit" className="btn-primary" disabled={isLoading || !consentGiven}>
               {isLoading ? <Loader2 size={17} className="spin" /> : 'Create Account'}
             </button>
           </form>

@@ -17,11 +17,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      let captchaToken: string | undefined;
-      if ((window as any).grecaptcha) {
-        captchaToken = await (window as any).grecaptcha.execute('6LcKkPAsAAAAM5s0sDbYeXX4Z7CRPfZbJvfsJXC', { action: 'login' });
-      }
-      const result = await login(email, password, captchaToken);
+      const result = await login(email, password);
       if (result?.requiresVerification) {
         navigate('/verify-email');
       } else {
@@ -166,9 +162,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '4px' }}>
-            Protected by reCAPTCHA — <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}>Privacy</a> &amp; <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}>Terms</a>
-          </p>
 
           <div className="auth-divider"><span>or</span></div>
 
@@ -189,6 +182,12 @@ export default function LoginPage() {
             Don't have an account?{' '}
             <Link to="/register">Create one →</Link>
           </p>
+
+          <div style={{ textAlign: 'center', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+            <Link to="/kiosk" style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500 }}>
+              Using a shared / school computer? Continue as Guest →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { api } from '../lib/api';
 import { Link } from 'react-router-dom';
+import { useLang } from '../lib/useLang';
 
 interface ScorePoint {
   date: string;
@@ -46,6 +47,8 @@ const SUBJECT_COLORS: Record<string, string> = {
 };
 
 export default function AnalyticsPage() {
+  const lang = useLang();
+  const isTa = lang === 'ta';
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [weakAreas, setWeakAreas] = useState<WeakArea[] | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -87,8 +90,8 @@ export default function AnalyticsPage() {
       <div className="page-header">
         <BarChart3 size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">Analytics</h1>
-          <p className="page-desc">Performance insights, weak areas, and AI coaching</p>
+          <h1 className="page-title">{isTa ? 'பகுப்பாய்வு' : 'Analytics'}</h1>
+          <p className="page-desc">{isTa ? 'செயல்திறன் நுண்ணறிவு, பலவீன பகுதிகள், மற்றும் AI பயிற்சி' : 'Performance insights, weak areas, and AI coaching'}</p>
         </div>
       </div>
 
@@ -96,41 +99,41 @@ export default function AnalyticsPage() {
       <div className="stats-row stats-row-3">
         <div className="stat-card">
           <p className="stat-value">{data?.totalTests ?? 0}</p>
-          <p className="stat-label">Tests Taken</p>
+          <p className="stat-label">{isTa ? 'எடுத்த தேர்வுகள்' : 'Tests Taken'}</p>
         </div>
         <div className="stat-card">
           <p className="stat-value">
-            {data?.subjectAccuracy.length
+            {data?.subjectAccuracy?.length
               ? `${Math.max(...data.subjectAccuracy.map(s => s.accuracy))}%`
               : '—'}
           </p>
-          <p className="stat-label">Best Subject Accuracy</p>
+          <p className="stat-label">{isTa ? 'சிறந்த பாட துல்லியம்' : 'Best Subject Accuracy'}</p>
         </div>
         <div className="stat-card">
           <p className="stat-value">
-            {data?.subjectAccuracy.length
+            {data?.subjectAccuracy?.length
               ? data.subjectAccuracy.reduce((best, s) =>
                   s.accuracy > (best?.accuracy ?? -1) ? s : best, data.subjectAccuracy[0]
                 )?.subject ?? '—'
               : '—'}
           </p>
-          <p className="stat-label">Strongest Subject</p>
+          <p className="stat-label">{isTa ? 'வலிமையான பாடம்' : 'Strongest Subject'}</p>
         </div>
       </div>
 
       {!hasData ? (
         <div className="coming-soon-card">
           <TrendingUp size={48} className="coming-soon-icon" />
-          <h2>No test data yet</h2>
-          <p>Take at least one mock test to see your performance analytics here.</p>
+          <h2>{isTa ? 'இன்னும் தேர்வு தரவு இல்லை' : 'No test data yet'}</h2>
+          <p>{isTa ? 'உங்கள் செயல்திறன் பகுப்பாய்வை இங்கே பார்க்க குறைந்தது ஒரு மாதிரி தேர்வு எடுங்கள்.' : 'Take at least one mock test to see your performance analytics here.'}</p>
           <Link to="/dashboard/tests" className="btn-primary btn-start-test">
-            Start a Mock Test
+            {isTa ? 'மாதிரி தேர்வைத் தொடங்கு' : 'Start a Mock Test'}
           </Link>
         </div>
       ) : (
         <>
           {/* Score over time */}
-          <h2 className="section-heading">Score Progression</h2>
+          <h2 className="section-heading">{isTa ? 'மதிப்பெண் முன்னேற்றம்' : 'Score Progression'}</h2>
           <div className="auth-card chart-card panel-card chart-container">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={data.scoreTimeline} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
@@ -140,7 +143,7 @@ export default function AnalyticsPage() {
                 <Tooltip
                   contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   labelStyle={{ color: '#f1f5f9' }}
-                  formatter={(value: any) => [`${value}%`, 'Score']}
+                  formatter={(value: any) => [`${value}%`, isTa ? 'மதிப்பெண்' : 'Score']}
                 />
                 <Line type="monotone" dataKey="percentage" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 4 }} />
               </LineChart>
@@ -150,7 +153,7 @@ export default function AnalyticsPage() {
           {/* Subject accuracy */}
           <div className="panel-grid-2 panel-margin-bottom">
             <div>
-              <h2 className="section-heading">Subject Accuracy Radar</h2>
+              <h2 className="section-heading">{isTa ? 'பாட துல்லியம் ரேடார்' : 'Subject Accuracy Radar'}</h2>
               <div className="auth-card chart-card panel-card chart-container">
                 <ResponsiveContainer width="100%" height={240}>
                   <RadarChart data={data.subjectAccuracy}>
@@ -160,7 +163,7 @@ export default function AnalyticsPage() {
                     <Radar dataKey="accuracy" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.25} />
                     <Tooltip
                       contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                      formatter={(v: any) => [`${v}%`, 'Accuracy']}
+                      formatter={(v: any) => [`${v}%`, isTa ? 'துல்லியம்' : 'Accuracy']}
                     />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -168,7 +171,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div>
-              <h2 className="section-heading">Per-Subject Breakdown</h2>
+              <h2 className="section-heading">{isTa ? 'பாடம் வாரியான விவரம்' : 'Per-Subject Breakdown'}</h2>
               <div className="auth-card chart-card panel-card chart-container">
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={data.subjectAccuracy} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
@@ -177,7 +180,7 @@ export default function AnalyticsPage() {
                     <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                     <Tooltip
                       contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                      formatter={(v: any) => [`${v}%`, 'Accuracy']}
+                      formatter={(v: any) => [`${v}%`, isTa ? 'துல்லியம்' : 'Accuracy']}
                     />
                     <Bar dataKey="accuracy" radius={[4, 4, 0, 0]}>
                       {data.subjectAccuracy.map((entry) => (
@@ -191,26 +194,26 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Weak Area Analyzer */}
-          <h2 className="section-heading">AI Weak Area Analyzer</h2>
+          <h2 className="section-heading">{isTa ? 'AI பலவீன பகுதி பகுப்பாய்வி' : 'AI Weak Area Analyzer'}</h2>
           <div className="auth-card weak-area-card panel-card chart-container panel-margin-bottom">
             <div className="weak-area-header">
               <div className="weak-area-title">
                 <Brain size={20} className="weak-area-title-icon" />
-                <p className="weak-area-title-text">Identify your weak topics with AI</p>
+                <p className="weak-area-title-text">{isTa ? 'AI மூலம் உங்கள் பலவீன தலைப்புகளைக் கண்டறியுங்கள்' : 'Identify your weak topics with AI'}</p>
               </div>
               <button
                 className="btn-primary btn-analyze"
                 onClick={analyzeWeakAreas}
                 disabled={isAnalyzing}
               >
-                {isAnalyzing ? <><Loader2 size={14} className="spin" /> Analyzing...</> : 'Analyze Weak Areas'}
+                {isAnalyzing ? <><Loader2 size={14} className="spin" /> {isTa ? 'பகுப்பாய்வு செய்கிறது...' : 'Analyzing...'}</> : (isTa ? 'பலவீன பகுதிகளை பகுப்பாய்வு செய்' : 'Analyze Weak Areas')}
               </button>
             </div>
 
             {weakError && <div className="auth-error">{weakError}</div>}
 
             {weakAreas !== null && weakAreas.length === 0 && (
-              <p className="weak-area-success">Great job! No major weak areas detected based on your test history.</p>
+              <p className="weak-area-success">{isTa ? 'அருமை! உங்கள் தேர்வு வரலாற்றின் அடிப்படையில் பெரிய பலவீன பகுதிகள் எதுவும் இல்லை.' : 'Great job! No major weak areas detected based on your test history.'}</p>
             )}
 
             {weakAreas && weakAreas.length > 0 && (
@@ -226,21 +229,21 @@ export default function AnalyticsPage() {
                       <span className="weak-area-accuracy">{area.accuracy}%</span>
                     </div>
                     <p className="weak-area-reason">{area.reason}</p>
-                    <p className="weak-area-tip"><strong>Tip:</strong> {area.recommendation}</p>
+                    <p className="weak-area-tip"><strong>{isTa ? 'குறிப்பு' : 'Tip'}:</strong> {area.recommendation}</p>
                     <div className="weak-area-actions">
                       <Link
                         to={`/dashboard/tutor`}
                         state={{ subject: area.subject, topic: area.topic }}
                         className="weak-area-action-btn tutor"
                       >
-                        <Brain size={12} /> Ask AI Tutor
+                        <Brain size={12} /> {isTa ? 'AI ஆசிரியரிடம் கேள்' : 'Ask AI Tutor'}
                       </Link>
                       <Link
                         to={`/dashboard/flashcards`}
                         state={{ subject: area.subject, topic: area.topic }}
                         className="weak-area-action-btn flashcards"
                       >
-                        <BookOpen size={12} /> Generate Flashcards
+                        <BookOpen size={12} /> {isTa ? 'ஃபிளாஷ்கார்டுகள் உருவாக்கு' : 'Generate Flashcards'}
                       </Link>
                     </div>
                   </div>
@@ -253,14 +256,14 @@ export default function AnalyticsPage() {
               <div className="planner-cta">
                 <div className="planner-cta-content">
                   <Zap size={16} className="planner-cta-icon" />
-                  <p className="planner-cta-text">Update your study plan to focus on these weak areas</p>
+                  <p className="planner-cta-text">{isTa ? 'இந்த பலவீன பகுதிகளில் கவனம் செலுத்த உங்கள் படிப்பு திட்டத்தை புதுப்பிக்கவும்' : 'Update your study plan to focus on these weak areas'}</p>
                 </div>
                 <Link
                   to="/dashboard/planner"
                   state={{ weakTopics: weakAreas.map(w => w.topic).join(', ') }}
                   className="btn-update-plan"
                 >
-                  Update Study Plan
+                  {isTa ? 'படிப்பு திட்டத்தை புதுப்பி' : 'Update Study Plan'}
                 </Link>
               </div>
             )}

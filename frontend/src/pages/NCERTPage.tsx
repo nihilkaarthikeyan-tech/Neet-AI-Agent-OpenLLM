@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, ChevronRight, CheckCircle2, XCircle, RotateCcw, Loader2, GraduationCap } from 'lucide-react';
 import { api } from '../lib/api';
+import { useLang } from '../lib/useLang';
 
 type Chapter = { subject: string; classLevel: string; chapter: string };
 type Question = {
@@ -13,6 +14,8 @@ const SUBJECTS = ['Physics', 'Chemistry', 'Biology'];
 const OPTIONS = ['A', 'B', 'C', 'D'] as const;
 
 export default function NCERTPage() {
+  const lang = useLang();
+  const isTa = lang === 'ta';
   const [chapterMap, setChapterMap] = useState<ChapterMap>({});
   const [selected, setSelected] = useState<Chapter>({ subject: 'Biology', classLevel: 'Class 11', chapter: '' });
   const [count, setCount] = useState(10);
@@ -22,6 +25,7 @@ export default function NCERTPage() {
   const [current, setCurrent] = useState(0);
   const [showExplanation, setShowExplanation] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [quizError, setQuizError] = useState('');
 
   useEffect(() => {
     api.get<{ chapters: ChapterMap }>('/api/ncert/chapters').then(d => {
@@ -49,7 +53,7 @@ export default function NCERTPage() {
     setView('loading');
     try {
       const data = await api.post<{ questions: Question[] }>('/api/ncert/quiz', {
-        subject: selected.subject, chapter: selected.chapter, count,
+        subject: selected.subject, chapter: selected.chapter, count, language: lang,
       });
       setQuestions(data.questions);
       setAnswers({});
@@ -59,7 +63,7 @@ export default function NCERTPage() {
       setView('quiz');
     } catch {
       setView('setup');
-      alert('Failed to generate quiz. Please try again.');
+      setQuizError(isTa ? 'வினாடி வினாவை உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.' : 'Failed to generate quiz. Please try again.');
     }
   };
 
@@ -87,18 +91,23 @@ export default function NCERTPage() {
       <div className="page-header">
         <GraduationCap size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">NCERT Coverage</h1>
-          <p className="page-desc">Chapter-by-chapter quiz — test every NCERT line</p>
+          <h1 className="page-title">{isTa ? 'NCERT பாடங்கள்' : 'NCERT Coverage'}</h1>
+          <p className="page-desc">{isTa ? 'அத்தியாயம் வாரியான வினாடி வினா — ஒவ்வொரு NCERT வரியையும் சோதிக்கவும்' : 'Chapter-by-chapter quiz — test every NCERT line'}</p>
         </div>
       </div>
 
       {/* ── Setup ── */}
+      {quizError && view === 'setup' && (
+        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', color: '#f87171', marginBottom: '16px', fontSize: '14px' }}>
+          {quizError}
+        </div>
+      )}
       {view === 'setup' && (
         <div style={{ maxWidth: 560 }}>
           <div className="card" style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Subject */}
             <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>Subject</label>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>{isTa ? 'பாடம்' : 'Subject'}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {SUBJECTS.map(s => (
                   <button key={s} onClick={() => handleSubjectChange(s)}
@@ -111,7 +120,7 @@ export default function NCERTPage() {
 
             {/* Class */}
             <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>Class</label>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>{isTa ? 'வகுப்பு' : 'Class'}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {['Class 11', 'Class 12'].map(c => (
                   <button key={c} onClick={() => handleClassChange(c)}
@@ -124,7 +133,7 @@ export default function NCERTPage() {
 
             {/* Chapter */}
             <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>Chapter</label>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>{isTa ? 'அத்தியாயம்' : 'Chapter'}</label>
               <select value={selected.chapter} onChange={e => setSelected(s => ({ ...s, chapter: e.target.value }))}
                 style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '14px' }}>
                 {chapters.map(ch => <option key={ch} value={ch}>{ch}</option>)}
@@ -134,7 +143,7 @@ export default function NCERTPage() {
             {/* Count */}
             <div>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>
-                Number of Questions: <span style={{ color: 'var(--accent)' }}>{count}</span>
+                {isTa ? 'கேள்விகள் எண்ணிக்கை' : 'Number of Questions'}: <span style={{ color: 'var(--accent)' }}>{count}</span>
               </label>
               <input type="range" min={5} max={30} step={5} value={count} onChange={e => setCount(Number(e.target.value))}
                 style={{ width: '100%', accentColor: 'var(--accent)' }} />
@@ -144,7 +153,7 @@ export default function NCERTPage() {
             </div>
 
             <button className="btn-primary" onClick={startQuiz} disabled={!selected.chapter} style={{ marginTop: '4px' }}>
-              <BookOpen size={16} /> Start NCERT Quiz
+              <BookOpen size={16} /> {isTa ? 'NCERT வினாடி வினாவை தொடங்கு' : 'Start NCERT Quiz'}
             </button>
           </div>
         </div>
@@ -154,7 +163,7 @@ export default function NCERTPage() {
       {view === 'loading' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', paddingTop: '60px' }}>
           <Loader2 size={40} className="spin" style={{ color: 'var(--accent)' }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Generating {count} questions from <strong>{selected.chapter}</strong>…</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>{isTa ? <><strong>{selected.chapter}</strong> -ல் இருந்து {count} கேள்விகள் உருவாக்கப்படுகிறது…</> : <>Generating {count} questions from <strong>{selected.chapter}</strong>…</>}</p>
         </div>
       )}
 
@@ -164,7 +173,7 @@ export default function NCERTPage() {
           {/* Progress */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              Question {current + 1} of {questions.length}
+              {isTa ? `கேள்வி ${current + 1} / ${questions.length}` : `Question ${current + 1} of ${questions.length}`}
             </span>
             <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{selected.chapter}</span>
           </div>
@@ -201,7 +210,7 @@ export default function NCERTPage() {
 
             {showExplanation && (
               <div style={{ background: 'var(--bg-base)', borderRadius: '10px', padding: '14px 16px', borderLeft: '3px solid var(--accent)' }}>
-                <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent)', marginBottom: '6px' }}>Explanation</p>
+                <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent)', marginBottom: '6px' }}>{isTa ? 'விளக்கம்' : 'Explanation'}</p>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '8px' }}>{questions[current].explanation}</p>
                 {questions[current].ncertLine && (
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -213,7 +222,7 @@ export default function NCERTPage() {
 
             {answers[current] && (
               <button className="btn-primary" onClick={handleNext}>
-                {current < questions.length - 1 ? <>Next <ChevronRight size={16} /></> : 'See Results'}
+                {current < questions.length - 1 ? <>{isTa ? 'அடுத்து' : 'Next'} <ChevronRight size={16} /></> : (isTa ? 'முடிவுகளைப் பார்' : 'See Results')}
               </button>
             )}
           </div>
@@ -233,10 +242,10 @@ export default function NCERTPage() {
             <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>{selected.subject} · {selected.classLevel}</p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'center' }}>
               <button className="btn-primary" onClick={() => { setView('setup'); }}>
-                <RotateCcw size={15} /> New Chapter
+                <RotateCcw size={15} /> {isTa ? 'புதிய அத்தியாயம்' : 'New Chapter'}
               </button>
               <button onClick={startQuiz} style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <RotateCcw size={15} /> Retry
+                <RotateCcw size={15} /> {isTa ? 'மீண்டும்' : 'Retry'}
               </button>
             </div>
           </div>
@@ -253,7 +262,7 @@ export default function NCERTPage() {
                       <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>{q.question}</p>
                       {!correct && (
                         <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          Your answer: <strong style={{ color: '#ef4444' }}>{answers[i] || 'Skipped'}</strong> · Correct: <strong style={{ color: '#10b981' }}>{q.correct}</strong>
+                          {isTa ? 'உங்கள் பதில்' : 'Your answer'}: <strong style={{ color: '#ef4444' }}>{answers[i] || (isTa ? 'விடப்பட்டது' : 'Skipped')}</strong> · {isTa ? 'சரி' : 'Correct'}: <strong style={{ color: '#10b981' }}>{q.correct}</strong>
                         </p>
                       )}
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>{q.explanation}</p>

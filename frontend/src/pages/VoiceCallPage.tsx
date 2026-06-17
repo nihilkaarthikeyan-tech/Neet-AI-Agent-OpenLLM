@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Volume2, Loader2 } from 'lucide-react';
+import { useLang } from '../lib/useLang';
 
 const SUBJECTS = ['Physics', 'Chemistry', 'Biology'];
 
@@ -36,7 +37,19 @@ declare global {
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
+type ResponseStyle = 'en' | 'ta' | 'tanglish';
+
+const STYLE_OPTIONS: { value: ResponseStyle; label: string; emoji: string }[] = [
+  { value: 'en',       label: 'English',  emoji: '🇬🇧' },
+  { value: 'ta',       label: 'தமிழ்',    emoji: '🇮🇳' },
+  { value: 'tanglish', label: 'Tanglish', emoji: '💬' },
+];
+
 export default function VoiceCallPage() {
+  const lang = useLang();
+  const [responseStyle, setResponseStyle] = useState<ResponseStyle>(lang === 'ta' ? 'ta' : 'en');
+  // Speech recognition lang: Tamil STT for ta, English for en/tanglish (Tanglish is spoken in English script)
+  const speechLang = responseStyle === 'ta' ? 'ta-IN' : 'en-IN';
   const [subject, setSubject] = useState('Physics');
   const [callState, setCallState] = useState<CallState>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,13 +97,15 @@ export default function VoiceCallPage() {
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    utterance.lang = 'en-IN';
+    utterance.lang = speechLang;
 
-    // Pick a natural voice if available
+    // Pick best available voice for the selected language
     const voices = synth.getVoices();
-    const preferred = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural'))
-    ) ?? voices.find((v) => v.lang.startsWith('en'));
+    const langPrefix = responseStyle === 'ta' ? 'ta' : 'en';
+    const preferred =
+      voices.find((v) => v.lang.startsWith(langPrefix) && (v.name.includes('Google') || v.name.includes('Natural'))) ??
+      voices.find((v) => v.lang.startsWith(langPrefix)) ??
+      voices.find((v) => v.lang.startsWith('en'));
     if (preferred) utterance.voice = preferred;
 
     utterance.onend = () => {
@@ -116,7 +131,7 @@ export default function VoiceCallPage() {
 
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = 'en-IN';
+    recognition.lang = speechLang;
 
     let finalTranscript = '';
 
@@ -156,7 +171,7 @@ export default function VoiceCallPage() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: JSON.stringify({ subject, message: userText }),
+          body: JSON.stringify({ subject, message: userText, language: responseStyle }),
         });
 
         const data = await res.json() as { response?: string; error?: string };
@@ -204,8 +219,13 @@ export default function VoiceCallPage() {
     setMessages([]);
     isActiveRef.current = true;
 
-    // Greet the student
-    const greeting = `Hello! I'm your AI tutor for ${subject}. Ask me anything — formulas, concepts, problems, or previous year questions. I'm here to help.`;
+    // Greet the student in their chosen style
+    const greeting =
+      responseStyle === 'tanglish'
+        ? `Vanakkam da! Naan un AI tutor for ${subject}. Formulas, concepts, problems — evvalo ketta aagathu, sollu! Inga irukken.`
+        : responseStyle === 'ta'
+        ? `வணக்கம்! நான் உங்கள் ${subject} AI tutor. Formulas, concepts, problems — எந்த கேள்வியும் கேளுங்கள்!`
+        : `Hello! I'm your AI tutor for ${subject}. Ask me anything — formulas, concepts, problems, or previous year questions. I'm here to help.`;
     setMessages([{ role: 'ai', text: greeting }]);
     setCallState('speaking');
 
@@ -227,9 +247,9 @@ export default function VoiceCallPage() {
 
   const stateLabel: Record<CallState, string> = {
     idle: '',
-    listening: 'Listening...',
-    thinking: 'AI is thinking...',
-    speaking: 'AI is speaking...',
+    listening: lang === 'ta' ? 'கேட்கிறது...' : 'Listening...',
+    thinking: lang === 'ta' ? 'AI யோசிக்கிறது...' : 'AI is thinking...',
+    speaking: lang === 'ta' ? 'AI பேசுகிறது...' : 'AI is speaking...',
   };
 
   const stateColor: Record<CallState, string> = {
@@ -244,8 +264,8 @@ export default function VoiceCallPage() {
       <div className="page-header">
         <Phone size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">AI Voice Tutor</h1>
-          <p className="page-desc">Have a real-time voice conversation with your AI coach</p>
+          <h1 className="page-title">{lang === 'ta' ? 'AI குரல் ஆசிரியர்' : 'AI Voice Tutor'}</h1>
+          <p className="page-desc">{lang === 'ta' ? 'உங்கள் AI பயிற்சியாளருடன் நேரடி குரல் உரையாடல்' : 'Have a real-time voice conversation with your AI coach'}</p>
         </div>
       </div>
 
@@ -258,7 +278,7 @@ export default function VoiceCallPage() {
           color: '#fca5a5',
           marginBottom: '1.5rem',
         }}>
-          Your browser does not support the Web Speech API. Please use Google Chrome for the voice tutor.
+          {lang === 'ta' ? 'உங்கள் உலாவி Web Speech API-ஐ ஆதரிக்கவில்லை. குரல் ஆசிரியருக்கு Google Chrome பயன்படுத்தவும்.' : 'Your browser does not support the Web Speech API. Please use Google Chrome for the voice tutor.'}
         </div>
       )}
 
@@ -280,6 +300,30 @@ export default function VoiceCallPage() {
       <div className="voice-panel" style={{ marginBottom: '1.5rem' }}>
         {/* Subject + Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          {callState === 'idle' && (
+            <>
+            {/* Response style picker */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI speaks in</span>
+              {STYLE_OPTIONS.map(({ value, label, emoji }) => (
+                <button
+                  key={value}
+                  onClick={() => setResponseStyle(value)}
+                  style={{
+                    padding: '4px 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
+                    border: `1.5px solid ${responseStyle === value ? '#6366f1' : 'rgba(255,255,255,0.1)'}`,
+                    background: responseStyle === value ? 'rgba(99,102,241,0.2)' : 'transparent',
+                    color: responseStyle === value ? '#a5b4fc' : '#64748b',
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                  }}
+                >
+                  {emoji} {label}
+                </button>
+              ))}
+            </div>
+            </>
+          )}
+
           {callState === 'idle' && (
             <select
               value={subject}
@@ -309,7 +353,7 @@ export default function VoiceCallPage() {
               padding: '0.5rem 0.75rem',
               borderRadius: '0.5rem',
             }}>
-              {subject} Session
+              {subject} {lang === 'ta' ? 'அமர்வு' : 'Session'}
             </span>
           )}
 
@@ -347,7 +391,7 @@ export default function VoiceCallPage() {
                 }}
               >
                 <Phone size={16} />
-                Start Call
+                {lang === 'ta' ? 'அழைப்பைத் தொடங்கு' : 'Start Call'}
               </button>
             ) : (
               <button
@@ -367,7 +411,7 @@ export default function VoiceCallPage() {
                 }}
               >
                 <PhoneOff size={16} />
-                End Call
+                {lang === 'ta' ? 'அழைப்பை முடி' : 'End Call'}
               </button>
             )}
           </div>
@@ -414,8 +458,8 @@ export default function VoiceCallPage() {
         {callState === 'idle' && messages.length === 0 && (
           <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.875rem', padding: '1rem 0' }}>
             <MicOff size={32} style={{ margin: '0 auto 0.75rem', display: 'block', color: '#475569' }} />
-            Press "Start Call" to begin your voice session.<br />
-            Speak naturally — the AI will respond just like a phone call.
+            {lang === 'ta' ? '"அழைப்பைத் தொடங்கு" அழுத்தி உங்கள் குரல் அமர்வைத் தொடங்குங்கள்.' : 'Press "Start Call" to begin your voice session.'}<br />
+            {lang === 'ta' ? 'இயல்பாகப் பேசுங்கள் — AI ஒரு தொலைபேசி அழைப்பு போல பதிலளிக்கும்.' : 'Speak naturally — the AI will respond just like a phone call.'}
           </div>
         )}
       </div>
@@ -423,7 +467,7 @@ export default function VoiceCallPage() {
       {/* Conversation Transcript */}
       {messages.length > 0 && (
         <div>
-          <h2 className="section-heading" style={{ marginBottom: '1rem' }}>Conversation</h2>
+          <h2 className="section-heading" style={{ marginBottom: '1rem' }}>{lang === 'ta' ? 'உரையாடல்' : 'Conversation'}</h2>
           <div className="voice-transcript">
             {messages.map((msg, i) => (
               <div key={i} className={`voice-bubble ${msg.role === 'user' ? 'user' : 'ai'}`}>
@@ -432,7 +476,7 @@ export default function VoiceCallPage() {
                   color: msg.role === 'user' ? '#6366f1' : '#10b981',
                   marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em',
                 }}>
-                  {msg.role === 'user' ? 'You' : 'AI Tutor'}
+                  {msg.role === 'user' ? (lang === 'ta' ? 'நீங்கள்' : 'You') : (lang === 'ta' ? 'AI ஆசிரியர்' : 'AI Tutor')}
                 </div>
                 {msg.text}
               </div>

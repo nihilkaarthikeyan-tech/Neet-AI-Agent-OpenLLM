@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '../db.js';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { queueOtpEmail } from '../lib/emailQueue.js';
@@ -13,6 +14,9 @@ const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET ?? (() => { throw new Error('JWT_SECRET is not set'); })();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY ?? '';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? '';
+const GOOGLE_REDIRECT_URI = `${process.env.BACKEND_URL ?? 'http://localhost:5005'}/api/auth/google/callback`;
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 async function verifyCaptcha(token: string | undefined): Promise<boolean> {
   if (!RECAPTCHA_SECRET || !token) return true; // skip if not configured
@@ -34,6 +38,8 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters.').max(128),
   name: z.string().min(1).max(100).trim().optional(),
   role: z.enum(['STUDENT', 'TEACHER']).default('STUDENT'),
+  // DPDP Act 2023 — explicit consent must be recorded with a timestamp.
+  consentGiven: z.boolean().refine((v) => v === true, 'You must accept the Privacy Policy to register.'),
 });
 
 const loginSchema = z.object({
@@ -100,7 +106,7 @@ function issueAccessToken(userId: string, role: string): string {
 router.post('/register', async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0].message }); return; }
-  const { email, password, name, role } = parsed.data;
+  const { email, password, name, role, consentGiven } = parsed.data;
 
   try {
     const captchaOk = await verifyCaptcha(req.body.captchaToken);
@@ -110,7 +116,9 @@ router.post('/register', async (req: Request, res: Response) => {
     if (existing) { res.status(409).json({ error: 'Email already in use.' }); return; }
 
     const hash = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({ data: { email, password: hash, name, role, emailVerified: false } });
+    const user = await prisma.user.create({
+      data: { email, password: hash, name, role, emailVerified: false, consentGiven, consentDate: new Date() },
+    });
 
     const otp = await createOtp(user.id, 'EMAIL_VERIFY');
     await queueOtpEmail(email, otp, 'EMAIL_VERIFY');
@@ -309,13 +317,25 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 
 // ── GET /api/auth/google ─────────────────────────────────
 router.get('/google', (req: Request, res: Response) => {
+  // CSRF protection for the OAuth flow: mint a random `state`, stash it in a
+  // short-lived httpOnly cookie, and echo it back via Google. The callback only
+  // proceeds if the returned state matches the cookie.
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax', // lax: cookie must survive the redirect back from Google
+    maxAge: 10 * 60 * 1000,
+  });
+
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: `${process.env.BACKEND_URL ?? 'http://localhost:5005'}/api/auth/google/callback`,
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
     response_type: 'code',
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'select_account',
+    state,
   });
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -323,7 +343,18 @@ router.get('/google', (req: Request, res: Response) => {
 // ── GET /api/auth/google/callback ────────────────────────
 router.get('/google/callback', async (req: Request, res: Response) => {
   const code = req.query.code as string;
+  const returnedState = req.query.state as string | undefined;
+  const expectedState = req.cookies?.oauth_state as string | undefined;
+  res.clearCookie('oauth_state');
+
   if (!code) { res.redirect(`${FRONTEND_URL}/login?error=google_failed`); return; }
+
+  // Verify state to block login-CSRF. Use a timing-safe compare.
+  const stateOk =
+    !!returnedState && !!expectedState &&
+    returnedState.length === expectedState.length &&
+    crypto.timingSafeEqual(Buffer.from(returnedState), Buffer.from(expectedState));
+  if (!stateOk) { res.redirect(`${FRONTEND_URL}/login?error=google_state`); return; }
 
   try {
     // Exchange code for tokens
@@ -332,19 +363,23 @@ router.get('/google/callback', async (req: Request, res: Response) => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_id: GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.BACKEND_URL ?? 'http://localhost:5005'}/api/auth/google/callback`,
+        redirect_uri: GOOGLE_REDIRECT_URI,
         grant_type: 'authorization_code',
       }),
     });
     const tokenData = await tokenRes.json() as { id_token?: string };
     if (!tokenData.id_token) { res.redirect(`${FRONTEND_URL}/login?error=google_failed`); return; }
 
-    // Decode the ID token (JWT) to get user info — verify signature via Google's JWKS in production
-    const payload = JSON.parse(Buffer.from(tokenData.id_token.split('.')[1], 'base64url').toString()) as {
-      sub: string; email: string; name?: string; email_verified?: boolean;
-    };
+    // CRYPTOGRAPHICALLY verify the ID token against Google's public keys (JWKS)
+    // and confirm it was issued for OUR client_id. Never trust an unverified decode.
+    const ticket = await googleClient.verifyIdToken({ idToken: tokenData.id_token, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
+      res.redirect(`${FRONTEND_URL}/login?error=google_failed`);
+      return;
+    }
 
     let user = await prisma.user.findFirst({ where: { OR: [{ googleId: payload.sub }, { email: payload.email }] } });
 
@@ -361,8 +396,9 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     const refreshToken = await issueRefreshToken(user.id);
 
     res.cookie('refresh_token', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 30 * 24 * 60 * 60 * 1000 });
-    // Pass access token to frontend via URL param (frontend reads and stores it)
-    res.redirect(`${FRONTEND_URL}/auth/callback?token=${accessToken}`);
+    // Pass token via URL fragment — fragments are never sent to the server so
+    // the token won't appear in nginx/proxy access logs or Referer headers.
+    res.redirect(`${FRONTEND_URL}/auth/callback#token=${accessToken}`);
   } catch (err) {
     logger.error({ err }, 'Google OAuth error');
     res.redirect(`${FRONTEND_URL}/login?error=google_failed`);
@@ -374,12 +410,32 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, name: true, role: true, emailVerified: true, created_at: true },
+      select: { id: true, email: true, name: true, role: true, language: true, emailVerified: true, created_at: true },
     });
     if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
     res.json({ user });
   } catch (err) {
     logger.error({ err }, 'Me error');
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ── PATCH /api/auth/preferences ──────────────────────────
+// Persist the student's language choice (en | ta | bilingual). Tamil-first.
+const preferencesSchema = z.object({ language: z.enum(['en', 'ta']) });
+
+router.patch('/preferences', authenticate, async (req: AuthRequest, res: Response) => {
+  const parsed = preferencesSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0].message }); return; }
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { language: parsed.data.language },
+      select: { id: true, email: true, name: true, role: true, language: true, emailVerified: true },
+    });
+    res.json({ user });
+  } catch (err) {
+    logger.error({ err }, 'Preferences update error');
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { chatJSON } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -69,6 +70,7 @@ The JSON object must cover 7 days using exactly this structure:
     try {
       parsedPlan = await chatJSON({
         user: prompt,
+        system: NEET_GEN_SYSTEM,
         schema: StudyPlanSchema,
         maxTokens: 1500,
         temperature: 0.2, // Low temperature for deterministic JSON structure

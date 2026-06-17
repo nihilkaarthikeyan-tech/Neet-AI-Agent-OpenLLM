@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { chatJSONArray } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -47,6 +48,7 @@ Each flashcard object must use this exact structure:
     try {
       cards = await chatJSONArray({
         user: prompt,
+        system: NEET_GEN_SYSTEM,
         itemSchema: FlashcardSchema,
         maxTokens: 6000,
         temperature: 0.5,

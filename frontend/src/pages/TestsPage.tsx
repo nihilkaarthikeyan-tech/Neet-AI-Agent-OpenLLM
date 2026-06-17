@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ClipboardList, Play, ChevronLeft, ChevronRight,
-  Clock, CheckCircle, XCircle, AlertCircle, RotateCcw, Loader2, BookOpen,
+  Clock, CheckCircle, XCircle, AlertCircle, RotateCcw, Loader2, BookOpen, FileText, Target,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { useLang } from '../lib/useLang';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -68,11 +69,15 @@ function scoreColor(pct: number): string {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function TestsPage() {
   const { token } = useAuthStore();
+  const lang = useLang();
+  const isTa = lang === 'ta';
 
   // Config
   const [subject, setSubject] = useState('Physics');
   const [count, setCount] = useState(10);
   const [adaptive, setAdaptive] = useState(false);
+  const [topic, setTopic] = useState('');
+  const [difficulty, setDifficulty] = useState<'auto' | 'easy' | 'medium' | 'hard'>('auto');
 
   // Error classification
   const [classified, setClassified] = useState<Record<string, string>>({});
@@ -85,6 +90,7 @@ export default function TestsPage() {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [questionStart, setQuestionStart] = useState<number>(Date.now()); // for per-question timing
   const [elapsed, setElapsed] = useState(0);
 
   // Past tests
@@ -144,7 +150,7 @@ export default function TestsPage() {
       const res = await fetch(`${API_BASE}/api/tests/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subject, count, adaptive }),
+        body: JSON.stringify({ subject, count, adaptive, topic: topic.trim() || undefined, difficulty }),
       });
       const data = await res.json() as { attempt?: Attempt; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to generate test');
@@ -152,6 +158,7 @@ export default function TestsPage() {
       setAnswers({});
       setCurrentIdx(0);
       setElapsed(0);
+      setQuestionStart(Date.now());
       setView('inprogress');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to generate test');
@@ -161,15 +168,13 @@ export default function TestsPage() {
 
   // ── Save answer ──────────────────────────────────────────────────────────
   const handleAnswer = async (questionId: string, answer: string) => {
+    const timeSpent = Math.round((Date.now() - questionStart) / 1000);
     setAnswers((prev) => ({ ...prev, [questionId]: answer }));
-    // Fire-and-forget to backend
     fetch(`${API_BASE}/api/tests/${attempt!.id}/answer`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ questionId, answer }),
-    }).catch(() => {
-      /* ignore — will submit at end */
-    });
+      body: JSON.stringify({ questionId, answer, timeSpent }),
+    }).catch(() => { /* ignore — will submit at end */ });
   };
 
   // ── Submit test ──────────────────────────────────────────────────────────
@@ -186,8 +191,68 @@ export default function TestsPage() {
       if (!res.ok) throw new Error(data.error ?? 'Failed to submit');
       setAttempt(data.attempt!);
       setView('results');
+
+      // Award XP (fire-and-forget — don't block results view)
+      const finishedAttempt = data.attempt;
+      if (finishedAttempt) {
+        const correct = finishedAttempt.questions.filter((q) => q.userAnswer === q.correctOption).length;
+        const wrong = finishedAttempt.questions.filter((q) => q.userAnswer !== null && q.userAnswer !== q.correctOption).length;
+        fetch(`${API_BASE}/api/gamification/activity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ type: 'test_submit', metadata: { correct, wrong } }),
+        }).catch(() => {/* ignore XP errors */});
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to submit test');
+    }
+  };
+
+  // ── Practice Paper (180 Qs) ───────────────────────────────────────────────
+  const handlePracticePaper = async () => {
+    setError('');
+    setView('generating');
+    try {
+      const res = await fetch(`${API_BASE}/api/tests/practice-paper`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { attempt?: Attempt; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate practice paper');
+      setAttempt(data.attempt!);
+      setAnswers({});
+      setCurrentIdx(0);
+      setElapsed(0);
+      setQuestionStart(Date.now());
+      setView('inprogress');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate practice paper');
+      setView('home');
+    }
+  };
+
+  // ── Weak Topic Drill ──────────────────────────────────────────────────────
+  const [drillTopics, setDrillTopics] = useState<Array<{ topic: string; subject: string; mastery: number }>>([]);
+  const handleWeakDrill = async () => {
+    setError('');
+    setView('generating');
+    try {
+      const res = await fetch(`${API_BASE}/api/tests/weak-drill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json() as { attempt?: Attempt; weakTopics?: typeof drillTopics; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate weak drill');
+      setAttempt(data.attempt!);
+      setDrillTopics(data.weakTopics ?? []);
+      setAnswers({});
+      setCurrentIdx(0);
+      setElapsed(0);
+      setQuestionStart(Date.now());
+      setView('inprogress');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to generate weak drill');
+      setView('home');
     }
   };
 
@@ -197,8 +262,8 @@ export default function TestsPage() {
       <div className="page-loading-center">
         <Loader2 size={48} className="spin" />
         <div style={{ textAlign: 'center' }}>
-          <h2 className="section-heading" style={{ color: '#e2e8f0', margin: 0 }}>Generating your {subject} test…</h2>
-          <p style={{ color: '#94a3b8', marginTop: '8px' }}>Our AI is crafting {count} NEET-level questions. This may take 15–30 seconds.</p>
+          <h2 className="section-heading" style={{ color: '#e2e8f0', margin: 0 }}>{isTa ? `உங்கள் ${subject} தேர்வு உருவாக்கப்படுகிறது…` : `Generating your ${subject} test…`}</h2>
+          <p style={{ color: '#94a3b8', marginTop: '8px' }}>{isTa ? `எங்கள் AI ${count} NEET அளவிலான கேள்விகளை உருவாக்குகிறது. இது 15–30 விநாடிகள் ஆகலாம்.` : `Our AI is crafting ${count} NEET-level questions. This may take 15–30 seconds.`}</p>
         </div>
       </div>
     );
@@ -216,14 +281,14 @@ export default function TestsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e293b', borderRadius: '12px', padding: '12px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ClipboardList size={20} style={{ color: '#6366f1' }} />
-            <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{attempt.subject} Mock Test</span>
+            <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{attempt.subject} {isTa ? 'மாதிரி தேர்வு' : 'Mock Test'}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: maxTime - elapsed <= 60 ? '#ef4444' : '#94a3b8' }}>
               <Clock size={16} />
               <span style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: 700 }}>{formatTime(Math.max(0, maxTime - elapsed))}</span>
             </div>
-            <span style={{ color: '#94a3b8', fontSize: '14px' }}>{answered}/{totalQ} answered</span>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>{answered}/{totalQ} {isTa ? 'பதிலளிக்கப்பட்டது' : 'answered'}</span>
           </div>
         </div>
 
@@ -233,7 +298,7 @@ export default function TestsPage() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <span style={{ fontSize: '13px', color: '#6366f1', fontWeight: 600 }}>Q{currentIdx + 1} of {totalQ}</span>
+                <span style={{ fontSize: '13px', color: '#6366f1', fontWeight: 600 }}>{isTa ? `கேள்வி ${currentIdx + 1} / ${totalQ}` : `Q${currentIdx + 1} of ${totalQ}`}</span>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>{q.subject}</span>
               </div>
               <p style={{ color: '#e2e8f0', fontSize: '16px', lineHeight: 1.7, marginBottom: '24px', whiteSpace: 'pre-wrap' }}>{q.questionText}</p>
@@ -273,11 +338,11 @@ export default function TestsPage() {
             {/* Navigation */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
-                onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
+                onClick={() => { setCurrentIdx((i) => Math.max(0, i - 1)); setQuestionStart(Date.now()); }}
                 disabled={currentIdx === 0}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '8px', border: 'none', background: currentIdx === 0 ? '#1e293b' : '#334155', color: currentIdx === 0 ? '#475569' : '#e2e8f0', cursor: currentIdx === 0 ? 'not-allowed' : 'pointer', fontWeight: 600 }}
               >
-                <ChevronLeft size={16} /> Prev
+                <ChevronLeft size={16} /> {isTa ? 'முந்தைய' : 'Prev'}
               </button>
 
               {currentIdx === totalQ - 1 ? (
@@ -285,14 +350,14 @@ export default function TestsPage() {
                   onClick={handleSubmit}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 24px', borderRadius: '8px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}
                 >
-                  <CheckCircle size={16} /> Submit Test
+                  <CheckCircle size={16} /> {isTa ? 'தேர்வை சமர்ப்பி' : 'Submit Test'}
                 </button>
               ) : (
                 <button
-                  onClick={() => setCurrentIdx((i) => Math.min(totalQ - 1, i + 1))}
+                  onClick={() => { setCurrentIdx((i) => Math.min(totalQ - 1, i + 1)); setQuestionStart(Date.now()); }}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#334155', color: '#e2e8f0', cursor: 'pointer', fontWeight: 600 }}
                 >
-                  Next <ChevronRight size={16} />
+                  {isTa ? 'அடுத்து' : 'Next'} <ChevronRight size={16} />
                 </button>
               )}
             </div>
@@ -300,7 +365,7 @@ export default function TestsPage() {
 
           {/* Question navigator */}
           <div style={{ width: '200px', background: '#1e293b', borderRadius: '12px', padding: '16px', alignSelf: 'flex-start', position: 'sticky', top: '20px' }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Questions</p>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isTa ? 'கேள்விகள்' : 'Questions'}</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px' }}>
               {attempt.questions.map((aq, idx) => {
                 const isAnswered = !!(answers[aq.id] ?? aq.userAnswer);
@@ -308,7 +373,7 @@ export default function TestsPage() {
                 return (
                   <button
                     key={aq.id}
-                    onClick={() => setCurrentIdx(idx)}
+                    onClick={() => { setCurrentIdx(idx); setQuestionStart(Date.now()); }}
                     style={{
                       width: '32px', height: '32px', borderRadius: '6px', border: `2px solid ${isCurrent ? '#6366f1' : 'transparent'}`,
                       background: isCurrent ? '#6366f1' : isAnswered ? '#166534' : '#334155',
@@ -322,17 +387,17 @@ export default function TestsPage() {
             </div>
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#166534', flexShrink: 0 }} /> Answered
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#166534', flexShrink: 0 }} /> {isTa ? 'பதிலளித்தது' : 'Answered'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#334155', flexShrink: 0 }} /> Not visited
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#334155', flexShrink: 0 }} /> {isTa ? 'பார்க்கவில்லை' : 'Not visited'}
               </div>
             </div>
             <button
               onClick={handleSubmit}
               style={{ marginTop: '16px', width: '100%', padding: '10px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
             >
-              End Test
+              {isTa ? 'தேர்வை முடி' : 'End Test'}
             </button>
           </div>
         </div>
@@ -352,27 +417,27 @@ export default function TestsPage() {
       <div className="page-container" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Score card */}
         <div style={{ background: '#1e293b', borderRadius: '16px', padding: '32px', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>{attempt.subject} Test — Results</h2>
+          <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>{attempt.subject} {isTa ? 'தேர்வு — முடிவுகள்' : 'Test — Results'}</h2>
           <div style={{ fontSize: '64px', fontWeight: 800, color: scoreColor(pct), margin: '16px 0' }}>
             {attempt.score ?? 0}
           </div>
-          <p style={{ color: '#94a3b8', fontSize: '16px' }}>out of {maxScore} marks ({pct}%)</p>
+          <p style={{ color: '#94a3b8', fontSize: '16px' }}>{maxScore} {isTa ? `மதிப்பெண்களில் (${pct}%)` : `marks (${pct}%)`}</p>
           {attempt.timeTaken && (
-            <p style={{ color: '#64748b', fontSize: '14px', marginTop: '8px' }}>Time taken: {formatTime(attempt.timeTaken)}</p>
+            <p style={{ color: '#64748b', fontSize: '14px', marginTop: '8px' }}>{isTa ? 'எடுத்த நேரம்' : 'Time taken'}: {formatTime(attempt.timeTaken)}</p>
           )}
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginTop: '24px' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '28px', fontWeight: 700, color: '#22c55e' }}>{correct}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Correct (+{correct * 4})</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{isTa ? 'சரி' : 'Correct'} (+{correct * 4})</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '28px', fontWeight: 700, color: '#ef4444' }}>{wrong}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Wrong (−{wrong})</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{isTa ? 'தவறு' : 'Wrong'} (−{wrong})</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '28px', fontWeight: 700, color: '#94a3b8' }}>{skipped}</div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Skipped</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>{isTa ? 'விடப்பட்டது' : 'Skipped'}</div>
             </div>
           </div>
 
@@ -381,14 +446,14 @@ export default function TestsPage() {
               onClick={() => setView('home')}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#334155', color: '#e2e8f0', cursor: 'pointer', fontWeight: 600 }}
             >
-              <RotateCcw size={16} /> New Test
+              <RotateCcw size={16} /> {isTa ? 'புதிய தேர்வு' : 'New Test'}
             </button>
           </div>
         </div>
 
         {/* Question review */}
         <div>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e2e8f0', marginBottom: '12px' }}>Detailed Review</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#e2e8f0', marginBottom: '12px' }}>{isTa ? 'விரிவான மறுபரிசீலனை' : 'Detailed Review'}</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {questions.map((q, idx) => {
               const isCorrect = q.userAnswer === q.correctOption;
@@ -418,26 +483,26 @@ export default function TestsPage() {
                           }}
                         >
                           <strong>{opt}.</strong> {label}
-                          {isRightAns && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#4ade80' }}>✓ Correct</span>}
-                          {isUserAns && !isRightAns && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f87171' }}>✗ Your answer</span>}
+                          {isRightAns && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#4ade80' }}>✓ {isTa ? 'சரி' : 'Correct'}</span>}
+                          {isUserAns && !isRightAns && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f87171' }}>✗ {isTa ? 'உங்கள் பதில்' : 'Your answer'}</span>}
                         </div>
                       );
                     })}
                   </div>
                   {q.explanation && (
                     <div style={{ background: 'rgba(99,102,241,0.1)', borderRadius: '8px', padding: '12px', borderLeft: '3px solid #6366f1' }}>
-                      <p style={{ fontSize: '13px', color: '#a5b4fc', lineHeight: 1.6 }}><strong>Explanation:</strong> {q.explanation}</p>
+                      <p style={{ fontSize: '13px', color: '#a5b4fc', lineHeight: 1.6 }}><strong>{isTa ? 'விளக்கம்' : 'Explanation'}:</strong> {q.explanation}</p>
                     </div>
                   )}
                   {isWrong && (
                     <div style={{ marginTop: '10px' }}>
-                      <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px', fontWeight: 600 }}>Classify your mistake:</p>
+                      <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px', fontWeight: 600 }}>{isTa ? 'உங்கள் தவறை வகைப்படுத்துங்கள்:' : 'Classify your mistake:'}</p>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {[
-                          { key: 'conceptual', label: '🧠 Conceptual', color: '#ef4444' },
-                          { key: 'silly', label: '🤦 Silly', color: '#f59e0b' },
-                          { key: 'misread', label: '👁️ Misread', color: '#6366f1' },
-                          { key: 'time_pressure', label: '⏱️ Time Pressure', color: '#06b6d4' },
+                          { key: 'conceptual', label: isTa ? '🧠 கருத்துப் பிழை' : '🧠 Conceptual', color: '#ef4444' },
+                          { key: 'silly', label: isTa ? '🤦 அஜாக்கிரதை' : '🤦 Silly', color: '#f59e0b' },
+                          { key: 'misread', label: isTa ? '👁️ தவறாகப் படித்தது' : '👁️ Misread', color: '#6366f1' },
+                          { key: 'time_pressure', label: isTa ? '⏱️ நேர நெருக்கடி' : '⏱️ Time Pressure', color: '#06b6d4' },
                         ].map(({ key, label, color }) => {
                           const active = (classified[q.id] ?? q.errorType) === key;
                           return (
@@ -472,8 +537,8 @@ export default function TestsPage() {
       <div className="page-header">
         <ClipboardList size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">Mock Tests</h1>
-          <p className="page-desc">NEET-style timed exams with AI-powered explanations</p>
+          <h1 className="page-title">{isTa ? 'மாதிரி தேர்வுகள்' : 'Mock Tests'}</h1>
+          <p className="page-desc">{isTa ? 'AI விளக்கங்களுடன் NEET பாணி நேர தேர்வுகள்' : 'NEET-style timed exams with AI-powered explanations'}</p>
         </div>
       </div>
 
@@ -487,12 +552,12 @@ export default function TestsPage() {
       <div style={{ background: '#1e293b', borderRadius: '16px', padding: '28px', marginBottom: '24px' }}>
         <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#e2e8f0', marginBottom: '20px' }}>
           <Play size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle', color: '#6366f1' }} />
-          Start a New Test
+          {isTa ? 'புதிய தேர்வைத் தொடங்கு' : 'Start a New Test'}
         </h2>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '20px' }}>
           <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>Subject</label>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>{isTa ? 'பாடம்' : 'Subject'}</label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {SUBJECTS.map((s) => (
                 <button
@@ -512,7 +577,7 @@ export default function TestsPage() {
           </div>
 
           <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>Questions</label>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>{isTa ? 'கேள்விகள்' : 'Questions'}</label>
             <div style={{ display: 'flex', gap: '8px' }}>
               {COUNTS.map((c) => (
                 <button
@@ -532,40 +597,94 @@ export default function TestsPage() {
           </div>
         </div>
 
+        {/* Topic Mini Test */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+            {isTa ? 'தலைப்பு (விருப்பமானது) — குறிப்பிட்ட தலைப்பில் 5 கேள்விகள்' : 'Topic Mini-Test (optional) — 5 questions on one topic'}
+          </label>
+          <input
+            type="text"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder={isTa ? 'எ.கா. மைட்டோசிஸ், மின்னியல்' : 'e.g. Mitosis, Electrostatics, Coordination Compounds'}
+            style={{ padding: '9px 14px', borderRadius: '8px', border: `1.5px solid ${topic ? '#f59e0b' : '#334155'}`, background: '#0f172a', color: '#e2e8f0', fontSize: '14px', width: '360px', maxWidth: '100%' }}
+          />
+          {topic && <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>Mini-test mode: exactly 5 questions on "{topic}"</p>}
+        </div>
+
+        {/* Difficulty */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+            {isTa ? 'கடினத்தன்மை' : 'Difficulty'}
+          </label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {(['auto', 'easy', 'medium', 'hard'] as const).map((d) => {
+              const labels = { auto: isTa ? '⚡ தானியங்கி' : '⚡ Auto-Scale', easy: isTa ? '🟢 எளிது' : '🟢 Easy', medium: isTa ? '🟡 நடுத்தரம்' : '🟡 Medium', hard: isTa ? '🔴 கடினம்' : '🔴 Hard' };
+              return (
+                <button key={d} onClick={() => setDifficulty(d)}
+                  style={{ padding: '8px 14px', borderRadius: '8px', border: `1.5px solid ${difficulty === d ? '#6366f1' : '#334155'}`, background: difficulty === d ? 'rgba(99,102,241,0.15)' : 'transparent', color: difficulty === d ? '#a5b4fc' : '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
+                  {labels[d]}
+                </button>
+              );
+            })}
+          </div>
+          {difficulty === 'auto' && <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Auto: adjusts based on your recent test performance in this subject</p>}
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <button
             onClick={handleGenerate}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 28px', borderRadius: '10px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '15px' }}
           >
-            <Play size={18} /> Generate Test
+            <Play size={18} /> {topic ? (isTa ? 'மினி தேர்வை உருவாக்கு' : 'Generate Mini-Test') : (isTa ? 'தேர்வை உருவாக்கு' : 'Generate Test')}
           </button>
           <button
             onClick={() => setAdaptive(a => !a)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '10px', border: `2px solid ${adaptive ? '#f59e0b' : '#334155'}`, background: adaptive ? 'rgba(245,158,11,0.1)' : 'transparent', color: adaptive ? '#f59e0b' : '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '14px' }}
-            title="Focuses questions on your weak areas from analytics"
+            title={isTa ? 'பகுப்பாய்வில் இருந்து உங்கள் பலவீன பகுதிகளில் கவனம் செலுத்துகிறது' : 'Focuses questions on your weak areas from analytics'}
           >
-            🎯 {adaptive ? 'Adaptive ON' : 'Adaptive Mode'}
+            🎯 {adaptive ? (isTa ? 'தகவமைப்பு ON' : 'Adaptive ON') : (isTa ? 'தகவமைப்பு முறை' : 'Adaptive Mode')}
           </button>
           <p style={{ fontSize: '13px', color: '#64748b' }}>
-            Scoring: +4 correct, −1 wrong, 0 skipped
+            {isTa ? 'மதிப்பெண்: +4 சரி, −1 தவறு, 0 விடப்பட்டது' : 'Scoring: +4 correct, −1 wrong, 0 skipped'}
           </p>
         </div>
+      </div>
+
+      {/* Quick Start — Practice Paper + Weak Drill */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+        <button onClick={handlePracticePaper}
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 18px', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)', cursor: 'pointer', textAlign: 'left' }}>
+          <FileText size={22} style={{ color: '#818cf8', flexShrink: 0 }} />
+          <div>
+            <p style={{ fontWeight: 700, color: '#a5b4fc', fontSize: '14px', margin: 0 }}>{isTa ? 'பயிற்சி தேர்வு' : 'Practice Paper'}</p>
+            <p style={{ color: '#475569', fontSize: '12px', margin: '2px 0 0' }}>180 Qs — Bio+Phy+Chem mixed</p>
+          </div>
+        </button>
+        <button onClick={handleWeakDrill}
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 18px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', cursor: 'pointer', textAlign: 'left' }}>
+          <Target size={22} style={{ color: '#f87171', flexShrink: 0 }} />
+          <div>
+            <p style={{ fontWeight: 700, color: '#fca5a5', fontSize: '14px', margin: 0 }}>{isTa ? 'பலவீன தலைப்பு பயிற்சி' : 'Weak Topic Drill'}</p>
+            <p style={{ color: '#475569', fontSize: '12px', margin: '2px 0 0' }}>AI picks your 3 weakest topics · 10 Qs each</p>
+          </div>
+        </button>
       </div>
 
       {/* Past tests */}
       <div>
         <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#e2e8f0', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <BookOpen size={16} style={{ color: '#6366f1' }} /> Past Tests
+          <BookOpen size={16} style={{ color: '#6366f1' }} /> {isTa ? 'முந்தைய தேர்வுகள்' : 'Past Tests'}
         </h2>
 
         {loadingPast && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
-            <Loader2 size={16} className="spin" /> Loading…
+            <Loader2 size={16} className="spin" /> {isTa ? 'ஏற்றுகிறது…' : 'Loading…'}
           </div>
         )}
 
         {!loadingPast && pastTests.length === 0 && (
-          <p style={{ color: '#475569', fontSize: '14px' }}>No tests taken yet. Generate your first test above!</p>
+          <p style={{ color: '#475569', fontSize: '14px' }}>{isTa ? 'இன்னும் தேர்வு எடுக்கவில்லை. மேலே உங்கள் முதல் தேர்வை உருவாக்குங்கள்!' : 'No tests taken yet. Generate your first test above!'}</p>
         )}
 
         {!loadingPast && pastTests.length > 0 && (
@@ -577,7 +696,7 @@ export default function TestsPage() {
                 <div key={t.id} style={{ background: '#1e293b', borderRadius: '10px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ flex: 1 }}>
                     <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '15px' }}>{t.subject}</span>
-                    <span style={{ marginLeft: '8px', fontSize: '13px', color: '#64748b' }}>{t.totalQ} questions</span>
+                    <span style={{ marginLeft: '8px', fontSize: '13px', color: '#64748b' }}>{t.totalQ} {isTa ? 'கேள்விகள்' : 'questions'}</span>
                   </div>
                   {pct !== null ? (
                     <div style={{ textAlign: 'right' }}>
@@ -585,7 +704,7 @@ export default function TestsPage() {
                       <span style={{ fontSize: '13px', color: '#64748b' }}> / {maxScore} ({pct}%)</span>
                     </div>
                   ) : (
-                    <span style={{ fontSize: '13px', color: '#f59e0b' }}>In progress</span>
+                    <span style={{ fontSize: '13px', color: '#f59e0b' }}>{isTa ? 'நடப்பில்' : 'In progress'}</span>
                   )}
                   {t.timeTaken && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '13px' }}>

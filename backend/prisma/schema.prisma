@@ -12,7 +12,14 @@ model User {
   name          String?
   password      String?  // nullable for Google OAuth users
   googleId      String?  @unique
-  role          String   @default("STUDENT") // "STUDENT" | "TEACHER"
+  role                String   @default("STUDENT") // "STUDENT" | "TEACHER" | "ADMIN"
+  language            String   @default("en") // "en" | "ta"
+  district            String?  // TN district — for benchmarking & govt reporting
+  school              String?  // Government school name
+  targetScore         Int?     // Student's self-declared target (out of 720)
+  diagnosticCompleted Boolean  @default(false) // Has student done the onboarding diagnostic?
+  consentGiven    Boolean  @default(false) // DPDP Act 2023 — student consented to data use
+  consentDate     DateTime? // When consent was given
   emailVerified Boolean  @default(false)
   loginAttempts Int      @default(0)
   lockedUntil   DateTime?
@@ -24,8 +31,24 @@ model User {
   flashcards         Flashcard[]
   motivationMessages MotivationMessage[]
   weakAreaCache      WeakAreaCache?
+  microLessons       MicroLesson[]
   otpCodes           OtpCode[]
   refreshTokens      RefreshToken[]
+  learningToolSaves  LearningToolSave[]
+  badges             Badge[]
+  challengeAttempts  DailyChallengeAttempt[]
+  weeklyReports      WeeklyReport[]
+  chapterProgress    ChapterProgress[]
+  personalNotes      PersonalNote[]
+  savedHighlights    SavedHighlight[]
+  formulaBookmarks   FormulaBookmark[]
+
+  // Gamification
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  streak        Int      @default(0)
+  longestStreak Int      @default(0)
+  lastStudyDate String?  // YYYY-MM-DD
 
   @@index([email])
   @@index([googleId])
@@ -71,13 +94,15 @@ model StudyPlan {
 }
 
 model DoubtMessage {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject   String
-  role      String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject      String
+  role         String
+  content      String   @db.Text
+  verified     Boolean  @default(false) // Teacher-verified answer badge
+  verifiedBy   String?  // Teacher user ID who verified
+  createdAt    DateTime @default(now())
 
   @@index([userId, subject])
 }
@@ -114,6 +139,9 @@ model TestQuestion {
   topic         String      @default("")
   userAnswer    String?
   errorType     String?     // "conceptual" | "silly" | "misread" | "time_pressure"
+  ncertSource   String?     // "NCERT Biology Class 11, Ch.8 — Cell Cycle"
+  wrongAnalysis String?     @db.Text // Why each wrong option is wrong
+  timeSpent     Int?                 // seconds spent on this question (speed tracker)
 
   @@index([attemptId])
 }
@@ -159,4 +187,253 @@ model WeakAreaCache {
   generatedAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model MicroLesson {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  topic     String
+  content   String   @db.Text
+  completed Boolean  @default(false)
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+// Teacher → Student assignment (govt school teacher tracks their class)
+model TeacherStudent {
+  id        String   @id @default(uuid())
+  teacherId String
+  studentId String
+  createdAt DateTime @default(now())
+
+  @@unique([teacherId, studentId])
+  @@index([teacherId])
+  @@index([studentId])
+}
+
+model Badge {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String   // "first_question" | "streak_7" | "physics_master" etc.
+  earnedAt  DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+model DailyChallenge {
+  id            String   @id @default(uuid())
+  date          String   @unique // YYYY-MM-DD
+  questionText  String   @db.Text
+  optionA       String   @db.Text
+  optionB       String   @db.Text
+  optionC       String   @db.Text
+  optionD       String   @db.Text
+  correctOption String
+  explanation   String   @db.Text
+  subject       String
+  topic         String
+  createdAt     DateTime @default(now())
+}
+
+model DailyChallengeAttempt {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD
+  answer    String?  // A/B/C/D
+  isCorrect Boolean  @default(false)
+  timeTaken Int?     // seconds
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+model WeeklyReport {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart  String   // YYYY-MM-DD (Monday)
+  reportJson Json
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, weekStart])
+  @@index([userId])
+}
+
+model ChapterProgress {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapterId String   // e.g. "bio11_01"
+  status    String   @default("not_started") // "not_started"|"reading"|"revised"|"done"
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, chapterId])
+  @@index([userId])
+}
+
+model PersonalNote {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @db.Text
+  subject   String   @default("")
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model SavedHighlight {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content       String   @db.Text
+  sourceContext String   @default("")
+  subject       String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model FormulaBookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formula   String   @db.Text
+  subject   String
+  topic     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model LearningToolSave {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolType  String   // "mindmap" | "mnemonic"
+  title     String
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@index([userId, toolType])
+}
+
+// ── Community & Social (features 39–44) ───────────────────────────────────
+
+// Feature 41 — Peer Doubt Pool: when 10+ distinct students ask the same doubt,
+// the AI answers it once, publicly, for everyone.
+model PeerDoubt {
+  id         String           @id @default(uuid())
+  subject    String
+  normalized String           // lowercased/trimmed text used for dedup matching
+  question   String           @db.Text // representative original wording
+  askCount   Int              @default(1)
+  answered   Boolean          @default(false)
+  aiAnswer   String?          @db.Text
+  answeredAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  askers     PeerDoubtAsker[]
+
+  @@index([subject])
+  @@index([answered])
+  @@index([normalized])
+}
+
+model PeerDoubtAsker {
+  id          String    @id @default(uuid())
+  peerDoubtId String
+  peerDoubt   PeerDoubt @relation(fields: [peerDoubtId], references: [id], onDelete: Cascade)
+  userId      String    // plain ref (like TeacherStudent) — no User back-relation
+  createdAt   DateTime  @default(now())
+
+  @@unique([peerDoubtId, userId])
+  @@index([userId])
+}
+
+// Feature 44 — Study Group Pods: up to 5 students share a flashcard deck and
+// compete on an XP leaderboard.
+model StudyPod {
+  id         String           @id @default(uuid())
+  name       String
+  code       String           @unique // join code (e.g. "POD-7F3K")
+  ownerId    String           // plain ref to the creating student
+  createdAt  DateTime         @default(now())
+  members    StudyPodMember[]
+  flashcards PodFlashcard[]
+}
+
+model StudyPodMember {
+  id       String   @id @default(uuid())
+  podId    String
+  pod      StudyPod @relation(fields: [podId], references: [id], onDelete: Cascade)
+  userId   String   // plain ref
+  joinedAt DateTime @default(now())
+
+  @@unique([podId, userId])
+  @@index([userId])
+}
+
+model PodFlashcard {
+  id          String   @id @default(uuid())
+  podId       String
+  pod         StudyPod @relation(fields: [podId], references: [id], onDelete: Cascade)
+  createdById String
+  subject     String
+  topic       String   @default("")
+  front       String   @db.Text
+  back        String   @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([podId])
+}
+
+// Feature 42 — Parent Dashboard: a read-only access code a student shares with
+// a parent. parentPhone is stored for the (stubbed) weekly WhatsApp/SMS report.
+model ParentLink {
+  id          String   @id @default(uuid())
+  studentId   String   @unique // plain ref
+  code        String   @unique // access code parents use to view the dashboard
+  parentPhone String?
+  createdAt   DateTime @default(now())
+}
+
+// Feature 43 — Teacher Bulk Test: a teacher assigns ONE generated test to the
+// whole class. Each student gets a real TestAttempt (reusing the test engine),
+// and the teacher sees every result in one table.
+model ClassTest {
+  id          String                @id @default(uuid())
+  teacherId   String
+  title       String
+  subject     String
+  totalQ      Int
+  createdAt   DateTime              @default(now())
+  assignments ClassTestAssignment[]
+
+  @@index([teacherId])
+}
+
+model ClassTestAssignment {
+  id          String    @id @default(uuid())
+  classTestId String
+  classTest   ClassTest @relation(fields: [classTestId], references: [id], onDelete: Cascade)
+  studentId   String
+  attemptId   String    @unique // the per-student TestAttempt that holds the score
+  createdAt   DateTime  @default(now())
+
+  @@unique([classTestId, studentId])
+  @@index([studentId])
 }

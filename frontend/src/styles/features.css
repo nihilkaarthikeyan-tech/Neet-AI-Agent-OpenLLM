@@ -1,0 +1,373 @@
+/* ═══════════════════════════════════════════════════════════════
+   Feature pages — shared design tokens used by new pages
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Page tabs ─────────────────────────────────────────────────── */
+.page-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+
+.page-tab {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+
+.page-tab:hover { background: var(--bg-base); color: var(--text-primary); }
+
+.page-tab--active {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 2px 10px rgba(79,70,229,0.3);
+}
+
+/* ─── Feature card ───────────────────────────────────────────────── */
+.feature-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.8);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.8);
+  border-color: rgba(79,70,229,0.18);
+}
+
+.feature-card--accent  { background: linear-gradient(135deg,rgba(79,70,229,0.05),rgba(99,102,241,0.02)); border-color:rgba(79,70,229,0.2); }
+.feature-card--success { background: linear-gradient(135deg,rgba(5,150,105,0.05),rgba(16,185,129,0.02)); border-color:rgba(5,150,105,0.2); }
+.feature-card--warning { background: linear-gradient(135deg,rgba(217,119,6,0.05),rgba(245,158,11,0.02)); border-color:rgba(217,119,6,0.2); }
+.feature-card--danger  { background: linear-gradient(135deg,rgba(220,38,38,0.05),rgba(239,68,68,0.02));  border-color:rgba(220,38,38,0.2); }
+
+/* ─── Metric grid ────────────────────────────────────────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.metric-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.8);
+  text-align: center;
+}
+
+.metric-value { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.7px; color: var(--text-primary); line-height: 1.1; margin-bottom: 4px; }
+.metric-label { font-size: 11.5px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.metric-sub   { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* ─── Accuracy bars ──────────────────────────────────────────────── */
+.acc-bar { height: 7px; background: var(--bg-base); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.acc-bar-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
+.acc-high   { background: #059669; }
+.acc-mid    { background: #f59e0b; }
+.acc-low    { background: #f97316; }
+.acc-danger { background: #dc2626; }
+
+/* ─── NTA Simulator ──────────────────────────────────────────────── */
+.nta-shell {
+  display: flex;
+  height: 100vh;
+  background: #0a0d1a;
+  color: #e2e8f0;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.nta-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.nta-header {
+  background: #111827;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.nta-title { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+
+.nta-timer {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  padding: 6px 20px;
+  border-radius: 10px;
+  border: 2px solid;
+}
+
+.nta-timer--ok     { color: #6ee7b7; border-color: rgba(110,231,183,0.3); background: rgba(110,231,183,0.06); }
+.nta-timer--warn   { color: #fcd34d; border-color: rgba(252,211,77,0.3);  background: rgba(252,211,77,0.06);  animation: timerPulse 1s ease-in-out infinite; }
+.nta-timer--danger { color: #fca5a5; border-color: rgba(252,165,165,0.3); background: rgba(252,165,165,0.06); animation: timerPulse 0.5s ease-in-out infinite; }
+
+@keyframes timerPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+.nta-subject-nav {
+  display: flex;
+  gap: 4px;
+  background: #111827;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 8px 16px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.nta-subject-btn {
+  padding: 7px 18px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.nta-subject-btn:hover { border-color: rgba(255,255,255,0.25); color: #e2e8f0; }
+.nta-subject-btn--physics.nta-subject-btn--active   { background:rgba(59,130,246,0.2);  border-color:#3b82f6; color:#93c5fd; }
+.nta-subject-btn--chemistry.nta-subject-btn--active { background:rgba(5,150,105,0.2);   border-color:#10b981; color:#6ee7b7; }
+.nta-subject-btn--biology.nta-subject-btn--active   { background:rgba(217,119,6,0.2);   border-color:#f59e0b; color:#fcd34d; }
+
+.nta-body { flex: 1; display: flex; overflow: hidden; }
+
+.nta-question-panel { flex: 1; overflow-y: auto; padding: 28px 32px; }
+.nta-question-panel::-webkit-scrollbar { width: 4px; }
+.nta-question-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+
+.nta-q-number { font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+.nta-q-text   { font-size: 16px; color: #e2e8f0; line-height: 1.7; margin-bottom: 24px; font-weight: 500; }
+
+.nta-options { display: flex; flex-direction: column; gap: 10px; }
+
+.nta-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  width: 100%;
+  color: #cbd5e1;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.nta-option:hover { border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.06); color: #e2e8f0; }
+.nta-option--selected { border-color: #6366f1; background: rgba(99,102,241,0.15); color: #e2e8f0; }
+
+.nta-option-key {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 12px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.nta-actions { display: flex; gap: 10px; margin-top: 28px; flex-wrap: wrap; }
+
+.nta-btn { padding: 10px 22px; border-radius: 8px; border: none; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.nta-btn--primary { background: #4f46e5; color: white; }
+.nta-btn--primary:hover { background: #4338ca; }
+.nta-btn--outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.15); color: #94a3b8; }
+.nta-btn--outline:hover { border-color: rgba(255,255,255,0.3); color: #e2e8f0; }
+.nta-btn--mark    { background: rgba(245,158,11,0.15); border: 1.5px solid rgba(245,158,11,0.35); color: #fcd34d; }
+.nta-btn--mark:hover { background: rgba(245,158,11,0.25); }
+.nta-btn--danger  { background: rgba(220,38,38,0.15); border: 1.5px solid rgba(220,38,38,0.35); color: #fca5a5; }
+.nta-btn--danger:hover { background: rgba(220,38,38,0.25); }
+
+.nta-palette {
+  width: 220px;
+  background: #111827;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.nta-palette-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nta-palette-legend {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #64748b; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+.nta-palette-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-content: flex-start;
+}
+
+.nta-palette-grid::-webkit-scrollbar { width: 3px; }
+.nta-palette-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
+
+.palette-q {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.palette-q--current  { background: #4f46e5; color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.5); }
+.palette-q--answered { background: #059669; color: white; }
+.palette-q--marked   { background: #f59e0b; color: white; }
+.palette-q--skipped  { background: rgba(255,255,255,0.07); color: #64748b; border: 1px solid rgba(255,255,255,0.1); }
+
+.nta-submit-area { padding: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+
+/* ─── Micro-lesson ────────────────────────────────────────────────── */
+.micro-lesson-card {
+  background: linear-gradient(135deg, #07091c 0%, #0f172a 50%, #0c1128 100%);
+  border-radius: 20px;
+  padding: 32px 36px;
+  color: #e2e8f0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(7,9,28,0.4), 0 4px 16px rgba(99,102,241,0.15);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.micro-lesson-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(99,102,241,0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.micro-subject-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.micro-subject-badge--Biology   { background:rgba(217,119,6,0.18);  border:1px solid rgba(217,119,6,0.3);  color:#fcd34d; }
+.micro-subject-badge--Chemistry { background:rgba(5,150,105,0.18);  border:1px solid rgba(5,150,105,0.3);  color:#6ee7b7; }
+.micro-subject-badge--Physics   { background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.3); color:#93c5fd; }
+
+.micro-topic   { font-size: 24px; font-weight: 800; letter-spacing: -0.6px; color: #f8fafc; margin-bottom: 24px; line-height: 1.2; position: relative; }
+.micro-content { font-size: 14.5px; line-height: 1.85; color: #cbd5e1; white-space: pre-wrap; position: relative; }
+
+.micro-streak-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 1.5rem;
+}
+
+.micro-streak-num { font-size: 28px; font-weight: 800; color: #fcd34d; line-height: 1; }
+
+.micro-done-banner {
+  background: linear-gradient(135deg, rgba(5,150,105,0.15), rgba(16,185,129,0.08));
+  border: 1px solid rgba(5,150,105,0.3);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 1.5rem;
+}
+
+/* ─── Accordion ───────────────────────────────────────────────────── */
+.accordion-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+
+.accordion-item:hover { box-shadow: var(--shadow-sm); }
+
+.accordion-trigger {
+  width: 100%;
+  text-align: left;
+  padding: 1rem 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  transition: background 0.15s;
+}
+
+.accordion-trigger:hover { background: var(--bg-base); }
+
+.accordion-body {
+  padding: 0 1.25rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}

@@ -1,11 +1,17 @@
 import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
-import { chatStream } from '../lib/llm.js';
+import { chatStream, MODELS } from '../lib/llm.js';
+import { NEET_IDENTITY, NEET_SCOPE_GUARD } from '../lib/prompts.js';
 import { prisma } from '../db.js';
 
 const router = Router();
 
-const SYSTEM_PROMPT = `You are an expert NEET exam strategy coach with 15+ years of experience helping students score 600–720/720.
+const SYSTEM_PROMPT = `You are **NEET AI**, the Government of Tamil Nadu's official NEET exam strategy coach, with the experience of a mentor who has helped students score 600–720/720.
+
+${NEET_IDENTITY}
+
+${NEET_SCOPE_GUARD}
+
 You help students with:
 - Exam day strategy (which section to attempt first, how to manage time)
 - Negative marking tactics (when to skip vs attempt)
@@ -16,7 +22,13 @@ You help students with:
 - How to use elimination to maximise marks even when unsure
 
 Be direct, specific, and practical. Give concrete strategies, not generic advice.
-Keep responses focused and actionable — students are under pressure and need clear guidance.`;
+Keep responses focused and actionable — students are under pressure and need clear guidance.
+
+LANGUAGE MIRRORING (highest priority): Detect the student's language style from their message and mirror it exactly.
+- Tamil script in (தமிழ்) → respond in PURE TAMIL (only keep exam technical terms as English nouns). This student is Tamil-medium.
+- Tanglish in (Tamil meaning in English letters, e.g. "enna strategy da", "epdi time manage panrathu") → respond in Tanglish, like a warm Chennai coach.
+- English in → respond in English.
+Never mismatch the student's style.`;
 
 // POST /api/strategy/chat — streaming exam strategy coaching
 router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
@@ -63,7 +75,9 @@ router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
     for await (const text of chatStream({
       messages,
       system: SYSTEM_PROMPT,
+      model: MODELS.reasoning,
       maxTokens: 1024,
+      temperature: 0.4,
       feature: 'strategy-chat',
     })) {
       res.write(`data: ${JSON.stringify({ text })}\n\n`);

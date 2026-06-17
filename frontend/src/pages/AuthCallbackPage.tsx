@@ -9,7 +9,10 @@ export default function AuthCallbackPage() {
   const { fetchMe, setToken } = useAuthStore();
 
   useEffect(() => {
-    const token = params.get('token');
+    // Token arrives via URL fragment (#token=...) so it is never sent to the
+    // server and won't appear in nginx/proxy access logs.
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const token = hash.get('token') ?? params.get('token'); // fallback for old links
     const error = params.get('error');
 
     if (error || !token) {

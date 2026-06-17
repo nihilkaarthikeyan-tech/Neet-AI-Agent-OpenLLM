@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Flame, Loader2, RefreshCw, Calendar, Target, Zap } from 'lucide-react';
 import { api } from '../lib/api';
+import { useLang } from '../lib/useLang';
 
 interface DailyMessage {
   message: string;
@@ -15,6 +16,8 @@ interface StreakData {
 }
 
 export default function MotivationPage() {
+  const lang = useLang();
+  const isTa = lang === 'ta';
   const [daily, setDaily] = useState<DailyMessage | null>(null);
   const [streak, setStreak] = useState<StreakData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +46,7 @@ export default function MotivationPage() {
     fetchAll();
   }, []);
 
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString(isTa ? 'ta-IN' : 'en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   if (isLoading) {
     return (
@@ -58,8 +61,8 @@ export default function MotivationPage() {
       <div className="page-header">
         <Flame size={28} className="page-icon" style={{ color: '#f59e0b' }} />
         <div>
-          <h1 className="page-title">Motivation Coach</h1>
-          <p className="page-desc">Your daily AI pep-talk — personalized for your NEET journey</p>
+          <h1 className="page-title">{isTa ? 'உந்துதல் பயிற்சியாளர்' : 'Motivation Coach'}</h1>
+          <p className="page-desc">{isTa ? 'உங்கள் தினசரி AI ஊக்கவுரை — உங்கள் NEET பயணத்திற்காக' : 'Your daily AI pep-talk — personalized for your NEET journey'}</p>
         </div>
       </div>
 
@@ -72,20 +75,20 @@ export default function MotivationPage() {
             <Flame size={22} style={{ color: '#f59e0b' }} />
             {streak?.streak ?? 0}
           </p>
-          <p className="stat-label">Day Streak</p>
+          <p className="stat-label">{isTa ? 'நாள் தொடர்' : 'Day Streak'}</p>
         </div>
         <div className="stat-card">
           <p className="stat-value">{streak?.weeklyTests ?? 0}</p>
-          <p className="stat-label">Tests This Week</p>
+          <p className="stat-label">{isTa ? 'இந்த வார தேர்வுகள்' : 'Tests This Week'}</p>
         </div>
         <div className="stat-card">
           <p className="stat-value">{streak?.totalTests ?? 0}</p>
-          <p className="stat-label">Total Tests</p>
+          <p className="stat-label">{isTa ? 'மொத்த தேர்வுகள்' : 'Total Tests'}</p>
         </div>
       </div>
 
       {/* Daily message card */}
-      <h2 className="section-heading">Today's Message</h2>
+      <h2 className="section-heading">{isTa ? 'இன்றைய செய்தி' : "Today's Message"}</h2>
       <div className="solution-card panel-card--dark" style={{ marginBottom: '28px', position: 'relative', overflow: 'hidden', background: '#0f172a', border: '1px solid rgba(255,255,255,0.07)' }}>
         {/* Glow */}
         <div style={{
@@ -113,7 +116,7 @@ export default function MotivationPage() {
             }}
           >
             <RefreshCw size={12} className={isRefreshing ? 'spin' : ''} />
-            Refresh
+            {isTa ? 'புதுப்பி' : 'Refresh'}
           </button>
         </div>
 
@@ -127,55 +130,62 @@ export default function MotivationPage() {
             <span style={{ fontSize: '40px', color: '#f59e0b', lineHeight: 1, marginLeft: '4px', verticalAlign: 'sub' }}>"</span>
           </p>
         ) : (
-          <p style={{ color: '#94a3b8', fontSize: '15px' }}>Could not load today's message. Try refreshing.</p>
+          <p style={{ color: '#94a3b8', fontSize: '15px' }}>{isTa ? 'இன்றைய செய்தியை ஏற்ற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.' : "Could not load today's message. Try refreshing."}</p>
         )}
       </div>
 
       {/* Weekly breakdown */}
-      <h2 className="section-heading">Weekly Summary</h2>
+      <h2 className="section-heading">{isTa ? 'வாராந்திர சுருக்கம்' : 'Weekly Summary'}</h2>
       <div className="panel-grid-3" style={{ marginBottom: '28px' }}>
         <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Target size={18} style={{ color: '#8b5cf6' }} />
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>Tests This Week</span>
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>{isTa ? 'இந்த வார தேர்வுகள்' : 'Tests This Week'}</span>
           </div>
           <p style={{ fontSize: '32px', fontWeight: 800, color: '#8b5cf6' }}>{streak?.weeklyTests ?? 0}</p>
-          <p style={{ fontSize: '12px', color: '#94a3b8' }}>Keep taking at least 1 test per day</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8' }}>{isTa ? 'தினமும் குறைந்தது 1 தேர்வு எடுங்கள்' : 'Keep taking at least 1 test per day'}</p>
         </div>
 
         <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Flame size={18} style={{ color: '#f59e0b' }} />
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>Active Streak</span>
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>{isTa ? 'செயலில் உள்ள தொடர்' : 'Active Streak'}</span>
           </div>
-          <p style={{ fontSize: '32px', fontWeight: 800, color: '#f59e0b' }}>{streak?.streak ?? 0} days</p>
+          <p style={{ fontSize: '32px', fontWeight: 800, color: '#f59e0b' }}>{streak?.streak ?? 0} {isTa ? 'நாட்கள்' : 'days'}</p>
           <p style={{ fontSize: '12px', color: '#94a3b8' }}>
-            {streak?.streak === 0 ? 'Take a test today to start your streak!' : 'Amazing consistency — keep it up!'}
+            {streak?.streak === 0 ? (isTa ? 'உங்கள் தொடரைத் தொடங்க இன்று ஒரு தேர்வு எடுங்கள்!' : 'Take a test today to start your streak!') : (isTa ? 'அருமையான தொடர்ச்சி — தொடருங்கள்!' : 'Amazing consistency — keep it up!')}
           </p>
         </div>
 
         <div className="quick-card" style={{ flexDirection: 'column', alignItems: 'flex-start', cursor: 'default', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Zap size={18} style={{ color: '#10b981' }} />
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>Total Practice</span>
+            <span style={{ fontWeight: 600, fontSize: '14px' }}>{isTa ? 'மொத்த பயிற்சி' : 'Total Practice'}</span>
           </div>
           <p style={{ fontSize: '32px', fontWeight: 800, color: '#10b981' }}>{streak?.totalTests ?? 0}</p>
-          <p style={{ fontSize: '12px', color: '#94a3b8' }}>Total tests completed so far</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8' }}>{isTa ? 'இதுவரை முடித்த மொத்த தேர்வுகள்' : 'Total tests completed so far'}</p>
         </div>
       </div>
 
       {/* Motivation tips */}
-      <h2 className="section-heading">NEET Topper Tips</h2>
+      <h2 className="section-heading">{isTa ? 'NEET டாப்பர் குறிப்புகள்' : 'NEET Topper Tips'}</h2>
       <div className="auth-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
         <ul style={{ display: 'flex', flexDirection: 'column', gap: '14px', listStyle: 'none' }}>
-          {[
+          {(isTa ? [
+            'தினமும் குறைந்தது 50 MCQ-களை தீர்க்கவும் — தொடர்ச்சி, தீவிரத்தை விட முக்கியம்.',
+            'ஒவ்வொரு மாதிரி தேர்விற்குப் பிறகும் தவறான விடைகளை உடனே மறுபரிசீலனை செய்யுங்கள். உண்மையான கற்றல் அங்குதான்.',
+            'உயிரியலுக்கு NCERT பாடப்புத்தகங்களுக்கு முன்னுரிமை கொடுங்கள் — NEET உயிரியலில் 80% நேரடியாக NCERT-ல் இருந்து வருகிறது.',
+            'இயற்பியலுக்கு, formula-களை மனப்பாடம் செய்வதை விட concepts-ஐ ஆழமாக புரிந்துகொள்வதில் கவனம் செலுத்துங்கள்.',
+            'நேர மேலாண்மை: 180 கேள்விகளையும் 160 நிமிடங்களுக்குள் முடிக்க இலக்கு வைக்கவும், மறுபரிசீலனைக்கு 20 நிமிடங்கள் விடவும்.',
+            '7-8 மணி நேரம் தூங்குங்கள். தூக்கத்தின் போது நினைவு வலுப்படுகிறது — அது வீண் நேரம் அல்ல.',
+          ] : [
             'Solve at least 50 MCQs every day — consistency beats intensity.',
             'Review wrong answers immediately after every mock test. That\'s where the real learning is.',
             'Prioritize NCERT textbooks for Biology — 80% of NEET Biology is directly from NCERT.',
             'For Physics, focus on understanding concepts deeply rather than memorizing formulas.',
             'Time management: aim to finish all 180 questions in under 160 minutes, leaving 20 for review.',
             'Sleep 7-8 hours. Consolidation happens during sleep — it\'s not wasted time.',
-          ].map((tip, i) => (
+          ]).map((tip, i) => (
             <li key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
               <span style={{
                 width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(245,158,11,0.15)',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Camera, Upload, Loader2, CheckCircle2, Lightbulb, X, ImageIcon } from 'lucide-react';
+import { useLang } from '../lib/useLang';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -19,6 +20,8 @@ interface UsageData {
 }
 
 export default function PhotoDoubtPage() {
+  const lang = useLang();
+  const isTa = lang === 'ta';
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [subject, setSubject] = useState('Biology');
@@ -89,6 +92,7 @@ export default function PhotoDoubtPage() {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('subject', subject);
+    formData.append('language', lang);
 
     try {
       const res = await fetch(`${API_BASE}/api/photo-doubt/solve`, {
@@ -122,8 +126,8 @@ export default function PhotoDoubtPage() {
       <div className="page-header">
         <Camera size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">Photo Doubt Solver</h1>
-          <p className="page-desc">Snap or upload any question — AI Vision solves it instantly</p>
+          <h1 className="page-title">{isTa ? 'புகைப்பட சந்தேக தீர்வி' : 'Photo Doubt Solver'}</h1>
+          <p className="page-desc">{isTa ? 'எந்த கேள்வியையும் படம் எடுத்து பதிவேற்றுங்கள் — AI Vision உடனே தீர்க்கும்' : 'Snap or upload any question — AI Vision solves it instantly'}</p>
         </div>
       </div>
 
@@ -138,7 +142,7 @@ export default function PhotoDoubtPage() {
           fontWeight: 600, marginBottom: '24px',
         }}>
           <Camera size={13} />
-          {usage.remaining}/{usage.limit} solves remaining today
+          {usage.remaining}/{usage.limit} {isTa ? 'தீர்வுகள் இன்று மீதம்' : 'solves remaining today'}
         </div>
       )}
 
@@ -146,13 +150,13 @@ export default function PhotoDoubtPage() {
         {/* Upload panel */}
         <div>
           <div className="auth-card panel-card" style={{ maxWidth: '100%', animation: 'none', marginBottom: '16px' }}>
-            <h2 className="section-heading">Upload Question Image</h2>
+            <h2 className="section-heading">{isTa ? 'கேள்வி படத்தை பதிவேற்று' : 'Upload Question Image'}</h2>
 
             {error && <div className="auth-error" style={{ marginBottom: '16px' }}>{error}</div>}
 
             {/* Subject selector */}
             <div className="input-group" style={{ marginBottom: '16px' }}>
-              <label>Subject</label>
+              <label>{isTa ? 'பாடம்' : 'Subject'}</label>
               <select
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
@@ -190,8 +194,8 @@ export default function PhotoDoubtPage() {
                   <Upload size={24} style={{ color: '#8b5cf6' }} />
                 </div>
                 <div>
-                  <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>Drop image here or click to browse</p>
-                  <p style={{ fontSize: '12px', color: '#94a3b8' }}>JPEG, PNG, WebP — max 5 MB</p>
+                  <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>{isTa ? 'படத்தை இங்கே இடுங்கள் அல்லது கிளிக் செய்யுங்கள்' : 'Drop image here or click to browse'}</p>
+                  <p style={{ fontSize: '12px', color: '#94a3b8' }}>{isTa ? 'JPEG, PNG, WebP — அதிகபட்சம் 5 MB' : 'JPEG, PNG, WebP — max 5 MB'}</p>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -232,23 +236,28 @@ export default function PhotoDoubtPage() {
               style={{ marginTop: '16px', padding: '10px 24px', width: '100%' }}
             >
               {isSolving
-                ? <><Loader2 size={15} className="spin" /> Analyzing image (5–10s)...</>
+                ? <><Loader2 size={15} className="spin" /> {isTa ? 'படத்தை பகுப்பாய்வு செய்கிறது (5–10வி)...' : 'Analyzing image (5–10s)...'}</>
                 : usage?.remaining === 0
-                  ? 'Daily limit reached'
-                  : <><Camera size={15} /> Solve with AI Vision</>}
+                  ? (isTa ? 'தினசரி வரம்பு எட்டப்பட்டது' : 'Daily limit reached')
+                  : <><Camera size={15} /> {isTa ? 'AI Vision மூலம் தீர்' : 'Solve with AI Vision'}</>}
             </button>
           </div>
 
           {/* Tips */}
           <div className="auth-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
-            <h2 className="section-heading" style={{ marginBottom: '12px' }}>Photo Tips</h2>
+            <h2 className="section-heading" style={{ marginBottom: '12px' }}>{isTa ? 'புகைப்பட குறிப்புகள்' : 'Photo Tips'}</h2>
             <ul style={{ display: 'flex', flexDirection: 'column', gap: '10px', listStyle: 'none' }}>
-              {[
+              {(isTa ? [
+                'கேள்வி உரை தெளிவாகவும் நல்ல வெளிச்சத்திலும் தெரியும்படி பார்த்துக்கொள்ளுங்கள்',
+                'கேள்வியை சுற்றி நெருக்கமாக crop செய்யுங்கள் — குறைவான background = சிறந்த துல்லியம்',
+                'படங்களுக்கு, முழு உருவத்தையும் labels-ஐயும் சேர்க்கவும்',
+                'மங்கலாக இருந்தால், கேள்வியை PYQ தீர்வியில் தட்டச்சு செய்து முயற்சிக்கவும்',
+              ] : [
                 'Ensure the question text is clearly visible and well-lit',
                 'Crop tightly around the question — less background = better accuracy',
                 'For diagrams, include the full figure and labels',
                 'If blurry, try typing the question in the PYQ solver instead',
-              ].map((tip, i) => (
+              ]).map((tip, i) => (
                 <li key={i} style={{ display: 'flex', gap: '10px', fontSize: '13px', color: '#94a3b8', alignItems: 'flex-start' }}>
                   <Lightbulb size={13} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
                   {tip}
@@ -267,7 +276,7 @@ export default function PhotoDoubtPage() {
               borderRadius: '16px', gap: '12px', color: '#475569',
             }}>
               <ImageIcon size={40} />
-              <p style={{ fontSize: '14px' }}>Upload an image to see the solution here</p>
+              <p style={{ fontSize: '14px' }}>{isTa ? 'தீர்வை இங்கே பார்க்க படத்தை பதிவேற்றுங்கள்' : 'Upload an image to see the solution here'}</p>
             </div>
           )}
 
@@ -279,15 +288,15 @@ export default function PhotoDoubtPage() {
             }}>
               <Loader2 size={36} className="spin" style={{ color: '#8b5cf6' }} />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '15px', fontWeight: 600 }}>AI is reading your image...</p>
-                <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>This usually takes 5–10 seconds</p>
+                <p style={{ fontSize: '15px', fontWeight: 600 }}>{isTa ? 'AI உங்கள் படத்தைப் படிக்கிறது...' : 'AI is reading your image...'}</p>
+                <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>{isTa ? 'இது பொதுவாக 5–10 விநாடிகள் ஆகும்' : 'This usually takes 5–10 seconds'}</p>
               </div>
             </div>
           )}
 
           {solution && (
             <div className="auth-card solution-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>AI Solution</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>{isTa ? 'AI தீர்வு' : 'AI Solution'}</h2>
 
               {/* Detected question */}
               {solution.questionText && solution.questionText !== 'Image unclear' && (
@@ -295,7 +304,7 @@ export default function PhotoDoubtPage() {
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                   borderRadius: '8px', padding: '12px 16px', marginBottom: '16px',
                 }}>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>Detected Question</p>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>{isTa ? 'கண்டறிந்த கேள்வி' : 'Detected Question'}</p>
                   <p style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.6 }}>{solution.questionText}</p>
                 </div>
               )}
@@ -308,13 +317,13 @@ export default function PhotoDoubtPage() {
               }}>
                 <CheckCircle2 size={20} style={{ color: '#10b981', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>Correct Answer</p>
+                  <p style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', marginBottom: '2px' }}>{isTa ? 'சரியான விடை' : 'Correct Answer'}</p>
                   <p style={{ fontSize: '16px', fontWeight: 700 }}>{solution.answer}</p>
                 </div>
               </div>
 
               {/* Steps */}
-              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Step-by-Step</h3>
+              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>{isTa ? 'படிப்படியாக' : 'Step-by-Step'}</h3>
               <ol style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', marginBottom: '20px' }}>
                 {solution.steps.map((step, i) => (
                   <li key={i} style={{ display: 'flex', gap: '12px', fontSize: '14px', lineHeight: 1.6 }}>
@@ -335,7 +344,7 @@ export default function PhotoDoubtPage() {
                   background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
                   borderRadius: '8px', padding: '12px 16px', marginBottom: '12px',
                 }}>
-                  <p style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Key Concept</p>
+                  <p style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{isTa ? 'முக்கிய கருத்து' : 'Key Concept'}</p>
                   <p style={{ fontSize: '13px', color: '#e2e8f0' }}>{solution.concept}</p>
                 </div>
               )}
@@ -349,7 +358,7 @@ export default function PhotoDoubtPage() {
                 }}>
                   <Lightbulb size={16} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }} />
                   <div>
-                    <p style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Memory Tip</p>
+                    <p style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{isTa ? 'நினைவு குறிப்பு' : 'Memory Tip'}</p>
                     <p style={{ fontSize: '13px', color: '#e2e8f0' }}>{solution.memoryTip}</p>
                   </div>
                 </div>

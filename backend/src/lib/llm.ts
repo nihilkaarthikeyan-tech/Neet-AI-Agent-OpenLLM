@@ -3,7 +3,7 @@
  *
  * Routes call the small helpers below (`chatJSON`, `chatJSONArray`, `chatText`,
  * `chatStream`) and never touch the SDK directly. Switching provider
- * (Together AI → self-hosted vLLM → any OpenAI-compatible endpoint) is a
+ * (OpenRouter → self-hosted vLLM → any OpenAI-compatible endpoint) is a
  * `.env` change only — see LLM_BASE_URL / LLM_API_KEY.
  *
  * This module also centralises: JSON mode, markdown-fence stripping, zod
@@ -11,25 +11,33 @@
  * usage logging.
  */
 // The 'openai' npm package is used purely as an OpenAI-compatible HTTP client.
-// It is NOT calling OpenAI — it is calling Together AI (or any self-hosted vLLM).
+// It is NOT calling OpenAI — it is calling OpenRouter (or any self-hosted vLLM).
 // No Anthropic/Claude or OpenAI credentials are used anywhere in this app.
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { logger } from './logger.js';
 
 // ── Provider client (OpenAI-compatible) ─────────────────────────────────
-// Together AI for testing/pilot; self-hosted vLLM in production. One config swap.
+// OpenRouter for testing/production. One config swap via .env.
 export const llm = new OpenAI({
   // Fall back to a placeholder so importing this module never crashes when the
   // key is unset (e.g. in tooling); real calls then fail with a clear auth error.
   apiKey: process.env.LLM_API_KEY ?? 'LLM_API_KEY_NOT_SET',
-  baseURL: process.env.LLM_BASE_URL, // e.g. https://api.together.xyz/v1
+  baseURL: process.env.LLM_BASE_URL, // e.g. https://openrouter.ai/api/v1
 });
 
 // ── Per-task model routing ───────────────────────────────────────────────
-// §6 settled on two free open models: one for all text, one for vision.
+// Each task type maps to the open model that's strongest at it. All are
+// OpenAI-compatible on OpenRouter (or self-hosted vLLM) — pure .env swaps.
+//   text      — general chat + structured JSON generation (DeepSeek-V3: best all-round)
+//   reasoning — step-by-step solving (Tutor/PYQ/Strategy). Flip to DeepSeek-R1 in .env
+//               for max numerical quality; <think> blocks are stripped automatically.
+//   tamil     — reserved for Tamil-heavy routes (Qwen is strongest at Indian languages)
+//   vision    — multimodal image solving (Photo Doubt)
 export const MODELS = {
   text: process.env.LLM_MODEL_TEXT ?? 'deepseek-ai/DeepSeek-V3',
+  reasoning: process.env.LLM_MODEL_REASONING ?? process.env.LLM_MODEL_TEXT ?? 'deepseek-ai/DeepSeek-V3',
+  tamil: process.env.LLM_MODEL_TAMIL ?? process.env.LLM_MODEL_TEXT ?? 'deepseek-ai/DeepSeek-V3',
   vision: process.env.LLM_MODEL_VISION ?? 'Qwen/Qwen2.5-VL-72B-Instruct',
 } as const;
 
@@ -73,6 +81,60 @@ function stripFences(text: string): string {
     .trim();
 }
 
+// ── Internal: strip reasoning <think>…</think> blocks ─────────────────────
+// Reasoning models (e.g. DeepSeek-R1) emit their chain-of-thought wrapped in
+// <think> tags. Students must never see this — only the final answer. For
+// non-streaming calls we remove whole blocks (and any unclosed leading block).
+function stripThink(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^[\s\S]*?<\/think>/i, '') // unclosed/opening block at the very start
+    .trim();
+}
+
+/**
+ * Stateful filter that drops <think>…</think> content from a token STREAM.
+ * Tokens can split a tag across chunks, so we buffer until we can decide.
+ * Returns the text that is safe to emit for the given incoming delta.
+ */
+function makeThinkStreamFilter() {
+  let inThink = false;
+  let pending = ''; // holds a possible partial tag at a chunk boundary
+  return (delta: string): string => {
+    let out = '';
+    let buf = pending + delta;
+    pending = '';
+    while (buf.length > 0) {
+      if (!inThink) {
+        const open = buf.indexOf('<think>');
+        if (open === -1) {
+          // Keep back a tail that could be the start of "<think>" split across chunks
+          const keep = Math.max(0, buf.length - 7);
+          out += buf.slice(0, keep);
+          pending = buf.slice(keep);
+          // Only hold the tail if it actually is a prefix of the tag
+          if (pending && !'<think>'.startsWith(pending)) { out += pending; pending = ''; }
+          break;
+        }
+        out += buf.slice(0, open);
+        buf = buf.slice(open + 7);
+        inThink = true;
+      } else {
+        const close = buf.indexOf('</think>');
+        if (close === -1) {
+          const keep = Math.max(0, buf.length - 8);
+          pending = buf.slice(keep); // hold possible partial "</think>"
+          if (pending && !'</think>'.startsWith(pending)) pending = '';
+          break;
+        }
+        buf = buf.slice(close + 8);
+        inThink = false;
+      }
+    }
+    return out;
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 1) chatText — plain-text completion (motivation, voice chat)
 // ─────────────────────────────────────────────────────────────────────────
@@ -97,7 +159,7 @@ export async function chatText(opts: {
   });
 
   logUsage(opts.feature ?? 'text', model, res.usage);
-  return res.choices[0]?.message?.content?.trim() ?? '';
+  return stripThink(res.choices[0]?.message?.content?.trim() ?? '');
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -124,11 +186,16 @@ export async function* chatStream(opts: {
     stream_options: { include_usage: true },
   });
 
+  // Drop any reasoning <think>…</think> content so students only see the answer.
+  const filterThink = makeThinkStreamFilter();
   for await (const chunk of stream) {
     // The final usage chunk carries no choices.
     if (chunk.usage) logUsage(opts.feature ?? 'stream', model, chunk.usage);
     const delta = chunk.choices[0]?.delta?.content;
-    if (delta) yield delta;
+    if (delta) {
+      const safe = filterThink(delta);
+      if (safe) yield safe;
+    }
   }
 }
 
@@ -255,6 +322,7 @@ export async function chatVisionJSON<T>(opts: {
   imageDataUrl: string;
   prompt: string;
   schema: z.ZodType<T>;
+  system?: string;
   model?: string;
   maxTokens?: number;
   feature?: string;
@@ -278,6 +346,7 @@ export async function chatVisionJSON<T>(opts: {
         max_tokens: maxTokens,
         response_format: { type: 'json_object' },
         messages: [
+          ...(opts.system ? [{ role: 'system' as const, content: opts.system }] : []),
           {
             role: 'user',
             content: [

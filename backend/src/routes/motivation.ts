@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { chatText } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
 
 const router = Router();
 
@@ -53,6 +54,7 @@ Return ONLY the message text. No JSON. No title.`;
 
     const message = await chatText({
       user: prompt,
+      system: NEET_GEN_SYSTEM,
       maxTokens: 400,
       temperature: 0.8,
       feature: 'motivation-daily',

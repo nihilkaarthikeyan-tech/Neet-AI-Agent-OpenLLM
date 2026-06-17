@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BookMarked, Loader2, Lightbulb, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../lib/api';
+import { useLang } from '../lib/useLang';
 
 interface Solution {
   answer: string;
@@ -21,6 +22,8 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 };
 
 export default function PYQPage() {
+  const lang = useLang();
+  const isTa = lang === 'ta';
   const [question, setQuestion] = useState('');
   const [subject, setSubject] = useState('Biology');
   const [year, setYear] = useState('');
@@ -38,7 +41,7 @@ export default function PYQPage() {
 
   const solve = async () => {
     if (!question.trim()) {
-      setError('Please paste a question first.');
+      setError(isTa ? 'முதலில் ஒரு கேள்வியை ஒட்டவும்.' : 'Please paste a question first.');
       return;
     }
     setError('');
@@ -48,6 +51,7 @@ export default function PYQPage() {
       const res = await api.post<{ solution: Solution }>('/api/pyq/ask', {
         question: question.trim(),
         subject,
+        language: lang,
         year: year ? parseInt(year) : undefined,
       });
       setSolution(res.solution);
@@ -66,8 +70,8 @@ export default function PYQPage() {
       <div className="page-header">
         <BookMarked size={28} className="page-icon" />
         <div>
-          <h1 className="page-title">Previous Year Questions</h1>
-          <p className="page-desc">Paste any NEET PYQ — get a step-by-step AI solution</p>
+          <h1 className="page-title">{isTa ? 'கடந்த ஆண்டு கேள்விகள்' : 'Previous Year Questions'}</h1>
+          <p className="page-desc">{isTa ? 'எந்த NEET PYQ-ஐயும் ஒட்டுங்கள் — படிப்படியான AI தீர்வு பெறுங்கள்' : 'Paste any NEET PYQ — get a step-by-step AI solution'}</p>
         </div>
       </div>
 
@@ -75,13 +79,13 @@ export default function PYQPage() {
         {/* Solver panel */}
         <div>
           <div className="auth-card panel-card" style={{ maxWidth: '100%', animation: 'none', marginBottom: '24px' }}>
-            <h2 className="section-heading">Solve a Question</h2>
+            <h2 className="section-heading">{isTa ? 'ஒரு கேள்வியைத் தீர்' : 'Solve a Question'}</h2>
 
             {error && <div className="auth-error" style={{ marginBottom: '16px' }}>{error}</div>}
 
             <div style={{ display: 'flex', gap: '12px', marginBottom: '14px' }}>
               <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
-                <label>Subject</label>
+                <label>{isTa ? 'பாடம்' : 'Subject'}</label>
                 <div className="input-wrap">
                   <select
                     value={subject}
@@ -93,14 +97,14 @@ export default function PYQPage() {
                 </div>
               </div>
               <div className="input-group" style={{ width: '120px', marginBottom: 0 }}>
-                <label>Year (optional)</label>
+                <label>{isTa ? 'ஆண்டு (விருப்பம்)' : 'Year (optional)'}</label>
                 <div className="input-wrap">
                   <select
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
                     style={{ width: '100%', padding: '10px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px' }}
                   >
-                    <option value="">Any</option>
+                    <option value="">{isTa ? 'எதுவும்' : 'Any'}</option>
                     {years.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
@@ -108,11 +112,11 @@ export default function PYQPage() {
             </div>
 
             <div className="input-group" style={{ marginBottom: '16px' }}>
-              <label>Question Text</label>
+              <label>{isTa ? 'கேள்வி உரை' : 'Question Text'}</label>
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Paste your NEET PYQ here... e.g. 'Which of the following is the correct sequence of events during mitosis?'"
+                placeholder={isTa ? 'உங்கள் NEET PYQ-ஐ இங்கே ஒட்டுங்கள்... எ.கா. "mitosis-ல் நிகழ்வுகளின் சரியான வரிசை எது?"' : "Paste your NEET PYQ here... e.g. 'Which of the following is the correct sequence of events during mitosis?'"}
                 rows={5}
                 style={{
                   width: '100%', padding: '12px 14px',
@@ -129,7 +133,7 @@ export default function PYQPage() {
               disabled={isSolving}
               style={{ padding: '10px 24px', width: 'auto' }}
             >
-              {isSolving ? <><Loader2 size={15} className="spin" /> Solving...</> : 'Get AI Solution'}
+              {isSolving ? <><Loader2 size={15} className="spin" /> {isTa ? 'தீர்க்கிறது...' : 'Solving...'}</> : (isTa ? 'AI தீர்வு பெறு' : 'Get AI Solution')}
             </button>
           </div>
 
@@ -137,7 +141,7 @@ export default function PYQPage() {
           {solution && (
             <div className="auth-card solution-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 700 }}>AI Solution</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 700 }}>{isTa ? 'AI தீர்வு' : 'AI Solution'}</h2>
                 <span style={{
                   background: DIFFICULTY_COLOR[solution.difficulty] ?? '#8b5cf6',
                   color: '#fff', fontSize: '12px', fontWeight: 600,
@@ -155,13 +159,13 @@ export default function PYQPage() {
               }}>
                 <CheckCircle2 size={20} style={{ color: '#10b981', flexShrink: 0 }} />
                 <div>
-                  <p style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Correct Answer</p>
+                  <p style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isTa ? 'சரியான விடை' : 'Correct Answer'}</p>
                   <p style={{ fontSize: '16px', fontWeight: 700, marginTop: '2px' }}>{solution.answer}</p>
                 </div>
               </div>
 
               {/* Steps */}
-              <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Step-by-Step Solution</h3>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>{isTa ? 'படிப்படியான தீர்வு' : 'Step-by-Step Solution'}</h3>
               <ol style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', marginBottom: '20px' }}>
                 {solution.steps.map((step, i) => (
                   <li key={i} style={{ display: 'flex', gap: '12px', fontSize: '14px', lineHeight: 1.6 }}>
@@ -182,7 +186,7 @@ export default function PYQPage() {
                   background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
                   borderRadius: '8px', padding: '12px 16px', marginBottom: '14px',
                 }}>
-                  <p style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Key Concept</p>
+                  <p style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{isTa ? 'முக்கிய கருத்து' : 'Key Concept'}</p>
                   <p style={{ fontSize: '13px', color: '#e2e8f0' }}>{solution.concept}</p>
                 </div>
               )}
@@ -196,7 +200,7 @@ export default function PYQPage() {
                 }}>
                   <Lightbulb size={16} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }} />
                   <div>
-                    <p style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Memory Tip</p>
+                    <p style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{isTa ? 'நினைவு குறிப்பு' : 'Memory Tip'}</p>
                     <p style={{ fontSize: '13px', color: '#e2e8f0' }}>{solution.memoryTip}</p>
                   </div>
                 </div>
@@ -207,7 +211,7 @@ export default function PYQPage() {
 
         {/* Topic browser */}
         <div>
-          <h2 className="section-heading">Browse Topics</h2>
+          <h2 className="section-heading">{isTa ? 'தலைப்புகளை உலாவு' : 'Browse Topics'}</h2>
           <div className="auth-card topic-card panel-card" style={{ maxWidth: '100%', animation: 'none' }}>
             {Object.entries(topics).map(([subj, topicList]) => (
               <div key={subj} style={{ marginBottom: '8px' }}>

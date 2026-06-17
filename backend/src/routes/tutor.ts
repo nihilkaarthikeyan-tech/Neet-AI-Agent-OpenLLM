@@ -1,9 +1,21 @@
 import { Router, type Response } from 'express';
+import { z } from 'zod';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
-import { chatStream, chatText, type ChatMessage } from '../lib/llm.js';
+import { chatStream, chatText, MODELS, type ChatMessage } from '../lib/llm.js';
+import { languageSchema } from '../lib/lang.js';
+import { buildTutorSystemPrompt, buildVoiceSystemPrompt } from '../lib/prompts.js';
+import { isCrisisMessage, CRISIS_RESOURCES } from '../lib/safety.js';
 
 const router = Router();
+
+// Subject is interpolated into the system prompt, so it must be a fixed set —
+// never free-form user text (prompt-injection surface).
+const chatSchema = z.object({
+  subject: z.enum(['Physics', 'Chemistry', 'Biology']),
+  message: z.string().min(1).max(4000),
+  language: languageSchema,
+});
 
 // GET /api/tutor/history?subject=Physics
 router.get('/history', authenticate, async (req: AuthRequest, res: Response) => {
@@ -29,14 +41,28 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response) => 
 // This endpoint returns an SSE stream.
 router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { subject, message } = req.body as { subject: string; message: string };
-
-    if (!subject || !message) {
-      res.status(400).json({ error: 'Subject and message are required.' });
-      return;
-    }
+    const parsed = chatSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0].message }); return; }
+    const { subject, message, language } = parsed.data;
 
     const userId = req.userId!;
+
+    // 0. Safety guard — if the student expresses crisis/self-harm, NEVER hand it
+    //    to the LLM. Respond with care + official helplines instead.
+    if (isCrisisMessage(message)) {
+      await prisma.doubtMessage.create({ data: { userId, subject, role: 'user', content: message } });
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+      const helplineText = CRISIS_RESOURCES.helplines.map((h) => `• ${h.name}: ${h.number}`).join('\n');
+      const careMsg = `${CRISIS_RESOURCES.message}\n\n${helplineText}`;
+      res.write(`data: ${JSON.stringify({ text: careMsg })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      await prisma.doubtMessage.create({ data: { userId, subject, role: 'assistant', content: careMsg } });
+      return;
+    }
 
     // 1. Save user's question to DoubtHistory
     await prisma.doubtMessage.create({
@@ -82,21 +108,8 @@ router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    // 5. System Prompt defining the AI's persona
-    const systemPrompt = `You are an expert NEET exam coach specializing in ${subject} for Indian medical entrance aspirants.
-
-CORE BEHAVIOR RULES:
-- NEVER tell students to visit external websites or the NTA website. You ARE the resource.
-- If a student asks for "previous year questions", "past papers", or "question papers": immediately provide 5–10 actual NEET-style MCQs on the topic or chapter they need, with 4 options (A/B/C/D). After giving questions, reveal answers with explanations only when asked.
-- If no specific topic is mentioned for question papers, ask which chapter/topic they want questions from, then provide them.
-- For concept doubts: use the Socratic method — guide, don't just answer.
-- For numericals: show step-by-step working with formulas clearly stated.
-- For MCQs the student shares: explain why the correct option is right AND why the wrong ones are wrong.
-- Always be encouraging. NEET is hard — acknowledge that and keep morale high.
-- Use Markdown formatting (bold, bullet points, numbered steps) for clarity.
-- Keep responses focused and exam-relevant. Mention NEET weightage of topics when relevant.
-
-NEVER say "I cannot provide question papers" — you CAN and you WILL generate high-quality NEET-standard MCQs on any ${subject} topic instantly.`;
+    // 5. System Prompt defining the AI's persona (centralised in lib/prompts).
+    const systemPrompt = buildTutorSystemPrompt(subject, language);
 
 
     // 6. Stream from the open-source LLM. The helper yields plain text deltas;
@@ -106,8 +119,9 @@ NEVER say "I cannot provide question papers" — you CAN and you WILL generate h
     for await (const text of chatStream({
       messages,
       system: systemPrompt,
+      model: MODELS.reasoning,
       maxTokens: 4096,
-      temperature: 0.7,
+      temperature: 0.4,
       feature: 'tutor-chat',
     })) {
       fullAssistantResponse += text;
@@ -144,14 +158,23 @@ NEVER say "I cannot provide question papers" — you CAN and you WILL generate h
 // Non-streaming version for voice UI — returns full AI response as JSON.
 router.post('/voice-chat', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { subject, message } = req.body as { subject: string; message: string };
-
-    if (!subject || !message) {
-      res.status(400).json({ error: 'Subject and message are required.' });
-      return;
-    }
+    const parsed = chatSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0].message }); return; }
+    const { subject, message, language } = parsed.data;
 
     const userId = req.userId!;
+
+    // Safety guard — crisis messages get care + helplines, never the LLM.
+    if (isCrisisMessage(message)) {
+      const helplineText = CRISIS_RESOURCES.helplines.map((h) => `${h.name}: ${h.number}`).join('. ');
+      const careMsg = `${CRISIS_RESOURCES.message} ${helplineText}`;
+      await prisma.doubtMessage.createMany({ data: [
+        { userId, subject, role: 'user', content: message },
+        { userId, subject, role: 'assistant', content: careMsg },
+      ] });
+      res.json({ response: careMsg });
+      return;
+    }
 
     // Save user message
     await prisma.doubtMessage.create({
@@ -185,13 +208,14 @@ router.post('/voice-chat', authenticate, async (req: AuthRequest, res: Response)
     }
     messages = mergedMessages;
 
-    const systemPrompt = `You are an expert NEET exam coach specializing in ${subject} for Indian medical entrance aspirants. The student is speaking to you via voice, so keep your response concise, clear, and conversational — 2-4 sentences maximum. No markdown, no bullet points. Speak naturally as you would in a phone call. Be encouraging and exam-focused. Always respond in English only, regardless of the language the student uses.`;
+    const systemPrompt = buildVoiceSystemPrompt(subject, language);
 
     const aiText = await chatText({
       messages,
       system: systemPrompt,
+      model: MODELS.reasoning,
       maxTokens: 400,
-      temperature: 0.7,
+      temperature: 0.5,
       feature: 'tutor-voice',
     });
 

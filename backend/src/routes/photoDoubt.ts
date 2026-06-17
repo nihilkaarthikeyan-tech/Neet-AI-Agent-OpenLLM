@@ -4,8 +4,13 @@ import { z } from 'zod';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { chatVisionJSON } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
+import { languageInstruction, languageSchema } from '../lib/lang.js';
 
 const router = Router();
+
+// subject is interpolated into the prompt → constrain it to a fixed set.
+const subjectSchema = z.enum(['Physics', 'Chemistry', 'Biology', 'General']).default('General');
 
 const PhotoSolutionSchema = z.object({
   questionText: z.string(),
@@ -46,7 +51,9 @@ router.post(
         return;
       }
 
-      const subject = (req.body as { subject?: string }).subject ?? 'General';
+      const subjectParsed = subjectSchema.safeParse((req.body as { subject?: string }).subject);
+      const subject = subjectParsed.success ? subjectParsed.data : 'General';
+      const language = languageSchema.parse((req.body as { language?: string }).language);
 
       // Rate limit: count doubt messages from today for this user
       const todayStart = new Date();
@@ -92,13 +99,15 @@ Return ONLY valid JSON. No markdown. Use this structure:
   "subject": "${subject}"
 }
 
-If the image is unclear or not a question, set questionText to "Image unclear" and explain in the steps array.`;
+If the image is unclear or not a question, set questionText to "Image unclear" and explain in the steps array.
+If the image is NOT a NEET Physics, Chemistry, or Biology question (e.g. a photo of a person, place, event, non-NEET subject like History/Geography/Civics, or any unrelated document), set questionText to "Not a NEET question" and steps to ["Please upload a photo of a NEET Physics, Chemistry, or Biology question only."] — do not attempt to answer it.${languageInstruction(language)}`;
 
       let solution: unknown;
       try {
         solution = await chatVisionJSON({
           imageDataUrl: `data:${mediaType};base64,${base64Image}`,
           prompt,
+          system: NEET_GEN_SYSTEM,
           schema: PhotoSolutionSchema,
           maxTokens: 1500,
           feature: 'photo-doubt',

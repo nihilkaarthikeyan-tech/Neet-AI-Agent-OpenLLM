@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../db.js';
 import { chatJSONArray } from '../lib/llm.js';
+import { NEET_GEN_SYSTEM } from '../lib/prompts.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -142,6 +143,7 @@ Each weak-area object must use this exact structure:
     try {
       weakAreas = await chatJSONArray({
         user: prompt,
+        system: NEET_GEN_SYSTEM,
         itemSchema: WeakAreaSchema,
         maxTokens: 1500,
         temperature: 0.3,

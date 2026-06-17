@@ -7,6 +7,7 @@ export interface User {
   email: string;
   name: string | null;
   role: string;
+  language: 'en' | 'ta';
   emailVerified: boolean;
   created_at: string;
 }
@@ -18,7 +19,7 @@ interface AuthState {
 
   setToken: (token: string) => void;
   login: (email: string, password: string, captchaToken?: string) => Promise<{ requiresVerification?: boolean }>;
-  register: (email: string, password: string, name: string, role?: string, captchaToken?: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role?: string, captchaToken?: string, consentGiven?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   fetchMe: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
@@ -53,11 +54,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email, password, name, role = 'STUDENT', captchaToken?: string) => {
+      register: async (email, password, name, role = 'STUDENT', captchaToken?: string, consentGiven = false) => {
         set({ isLoading: true });
         try {
           const data = await api.post<{ token: string; user: User }>(
-            '/api/auth/register', { email, password, name, role, captchaToken }
+            '/api/auth/register', { email, password, name, role, captchaToken, consentGiven }
           );
           localStorage.setItem('neet_token', data.token);
           set({ token: data.token, user: data.user, isLoading: false });
