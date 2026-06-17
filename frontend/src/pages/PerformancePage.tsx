@@ -226,7 +226,7 @@ export default function PerformancePage() {
                   <BarChart data={speedData.bySubject} layout="vertical">
                     <XAxis type="number" tick={{ fill: '#64748b', fontSize: 12 }} />
                     <YAxis dataKey="subject" type="category" tick={{ fill: '#94a3b8', fontSize: 13 }} width={80} />
-                    <Tooltip formatter={(v: number) => [`${v}s`, 'Avg time']} contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
+                    <Tooltip formatter={(v) => [`${v}s`, 'Avg time']} contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} />
                     <Bar dataKey="avgSeconds" radius={[0, 6, 6, 0]}>
                       {speedData.bySubject.map((entry) => (
                         <Cell key={entry.subject} fill={SUBJECT_COLORS[entry.subject] ?? '#6366f1'} />

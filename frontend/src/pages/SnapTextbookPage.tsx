@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Camera, Upload, X, BookOpen, Loader2 } from 'lucide-react';
+import { Camera, Upload, X, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useLang } from '../lib/useLang';
 

@@ -22,7 +22,7 @@ export default function VocabularyPage() {
   const [explanation, setExplanation] = useState<TermExplanation | null>(null);
   const [loadingExp, setLoadingExp] = useState(false);
   const [tab, setTab] = useState<'browse' | 'quiz'>('browse');
-  const [quizTerms, setQuizTerms] = useState<string[]>([]);
+  const [_quizTerms, setQuizTerms] = useState<string[]>([]);
   const [quiz, setQuiz] = useState<QuizQuestion[]>([]);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -71,7 +71,7 @@ export default function VocabularyPage() {
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
         {SUBJECTS.map((s) => (
           <button key={s} onClick={() => setSubject(s)}
-            style={{ padding: '7px 18px', borderRadius: '8px', border: 'none', fontWeight: 600, fontSize: '13px', cursor: 'pointer', background: subject === s ? 'var(--accent)' : 'var(--bg-surface)', color: subject === s ? '#fff' : 'var(--text-secondary)', border: `1px solid ${subject === s ? 'transparent' : 'var(--border)'}` }}>
+            style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer', background: subject === s ? 'var(--accent)' : 'var(--bg-surface)', color: subject === s ? '#fff' : 'var(--text-secondary)', border: `1px solid ${subject === s ? 'transparent' : 'var(--border)'}` }}>
             {s}
           </button>
         ))}
