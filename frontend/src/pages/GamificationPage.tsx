@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Trophy, Flame, Zap, Star, Target, Calendar, BookOpen, Loader2, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import MarkdownText from '../components/MarkdownText';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -185,7 +186,7 @@ export default function GamificationPage() {
           {comebackMsg && (
             <div style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', padding: '16px 20px' }}>
               <p style={{ fontWeight: 700, color: '#a78bfa', marginBottom: '6px' }}>💪 Welcome Back!</p>
-              <p style={{ color: '#c4b5fd', fontSize: '14px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{comebackMsg}</p>
+              <MarkdownText content={comebackMsg} style={{ color: '#c4b5fd', fontSize: '14px' }} />
             </div>
           )}
 
@@ -488,9 +489,10 @@ export default function GamificationPage() {
               <Calendar size={16} style={{ color: '#6366f1' }} />
               <p style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '15px' }}>Week of {weeklyReport.weekStart}</p>
             </div>
-            <div style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-              {weeklyReport.narrative || 'Complete some tests this week to generate your personalised report card.'}
-            </div>
+            {weeklyReport.narrative
+              ? <MarkdownText content={weeklyReport.narrative} style={{ color: '#cbd5e1', fontSize: '14px' }} />
+              : <p style={{ color: '#cbd5e1', fontSize: '14px' }}>Complete some tests this week to generate your personalised report card.</p>
+            }
           </div>
         </div>
       )}

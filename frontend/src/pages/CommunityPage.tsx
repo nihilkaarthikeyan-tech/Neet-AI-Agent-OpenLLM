@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Trophy, Lightbulb, MessageSquare, Loader2, Send, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import MarkdownText from '../components/MarkdownText';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -197,7 +198,7 @@ export default function CommunityPage() {
               <p style={{ fontSize: '12px', fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
                 {benchmark.achieversCount} students like you scored 600+ — here's what they did differently:
               </p>
-              <p style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontSize: '14px' }}>{benchmark.benchmark}</p>
+              <MarkdownText content={benchmark.benchmark} style={{ color: '#cbd5e1', fontSize: '14px' }} />
             </div>
           ) : (
             <div style={{ ...cardStyle, textAlign: 'center', color: '#64748b', padding: '40px' }}>
@@ -311,7 +312,7 @@ export default function CommunityPage() {
                     {expanded && (
                       <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px' }}>
                         <p style={{ fontSize: '11px', fontWeight: 700, color: '#22c55e', marginBottom: '6px' }}>AI Answer</p>
-                        <p style={{ color: '#cbd5e1', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{d.aiAnswer}</p>
+                        <MarkdownText content={d.aiAnswer} style={{ color: '#cbd5e1', fontSize: '13px' }} />
                       </div>
                     )}
                   </div>

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../lib/api';
+import MarkdownText from '../components/MarkdownText';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -377,23 +378,19 @@ function ConnectorView({ data }: { data: ConnectorData }) {
   );
 }
 
-function StreamView({ text }: { text: string }) {
-  return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #e2e8f0',
-      borderRadius: 12,
-      padding: '16px 20px',
-      fontSize: '0.88rem',
-      color: '#1e293b',
-      lineHeight: 1.8,
-      whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word',
-      minHeight: 80,
-    }}>
-      {text || <span style={{ color: '#94a3b8' }}>Output will appear here…</span>}
-    </div>
-  );
+function StreamView({ text, streaming }: { text: string; streaming?: boolean }) {
+  const containerStyle = {
+    background: '#fff',
+    border: '1px solid #e2e8f0',
+    borderRadius: 12,
+    padding: '16px 20px',
+    fontSize: '0.88rem',
+    color: '#1e293b',
+    minHeight: 80,
+  };
+  if (!text) return <div style={containerStyle}><span style={{ color: '#94a3b8' }}>Output will appear here…</span></div>;
+  if (streaming) return <div style={{ ...containerStyle, whiteSpace: 'pre-wrap', lineHeight: 1.8, wordBreak: 'break-word' }}>{text}</div>;
+  return <MarkdownText content={text} style={containerStyle} />;
 }
 
 function InfoCard({ title, body, color }: { title: string; body: string; color: string }) {

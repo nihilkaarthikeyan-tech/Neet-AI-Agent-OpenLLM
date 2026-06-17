@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Zap, Loader2, BookOpen, MessageCircle, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import MarkdownText from '../components/MarkdownText';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005';
 
@@ -99,9 +100,7 @@ export default function QuickRevisePage() {
               <Zap size={16} style={{ color: '#6366f1' }} />
               <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '15px' }}>Last 3 Days — AI Summary</span>
             </div>
-            <div style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-              {data.summary}
-            </div>
+            <MarkdownText content={data.summary} style={{ color: '#cbd5e1', fontSize: '14px' }} />
           </div>
 
           <button onClick={generate}
