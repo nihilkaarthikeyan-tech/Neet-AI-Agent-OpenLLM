@@ -320,7 +320,7 @@ export default function TeacherPortalPage() {
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
                 {isTa
                   ? 'AI உங்கள் மாணவர்களின் பலவீனங்களை பகுப்பாய்வு செய்யும்.'
-                  : 'AI will analyse your class's weak topics and give you a report.'}
+                  : "AI will analyse your class's weak topics and give you a report."}
               </p>
               <button onClick={() => void getReport()} className="btn-primary" style={{ width: 'auto', padding: '10px 24px' }}>
                 {isTa ? 'அறிக்கையை உருவாக்கு' : 'Generate Report'}
